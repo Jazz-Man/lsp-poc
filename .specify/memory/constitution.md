@@ -24,7 +24,7 @@ Check if feature exists in dependencies before implementing; async-lsp likely ha
 All handlers must be async and non-blocking; Error handling with thiserror/anyhow (no unwrap in production code); Tracing for all logging (not println!); Tests for each module; Documentation comments for public APIs
 
 ### PHP & WORDPRESS SPECIFICS
-Support PHP 8+ syntax fully; Parse PHPDoc annotations: @param, @return, @var, @template, @psalm-*, @phpstan-*; WordPress Hook API: all 18 functions with go-to-definition; composer.json integration: PHP version detection, ext-* warnings, PSR-4/PSR-0 autoload
+Support PHP 7.4+ syntax fully with special attention to PHP 8+ features; Parse PHPDoc annotations: @param, @return, @var, @template, @psalm-*, @phpstan-*; WordPress Hook API: all 18 functions with go-to-definition; composer.json integration: PHP version detection, ext-* warnings, PSR-4/PSR-0 autoload
 
 ### SPECIFICATION-DRIVEN DEVELOPMENT (SDD)
 Follow Specification-Driven Development (SDD) principles with spec-kit-plus; Create detailed specs before implementation; Break down features into testable tasks; Ensure all outputs strictly follow user intent

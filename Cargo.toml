@@ -1,11 +1,6 @@
 [workspace]
+members = ["crates/php-lsp", "crates/zed-php-lsp"]
 resolver = "2"
-members = [
-    "crates/php-lsp",
-    "crates/zed-php-lsp",
-]
 
-[workspace.package]
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
+[profile.release]
+lto = true

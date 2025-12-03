@@ -1,7 +1,13 @@
 //! PHP Language Server Protocol implementation
 //!
-//! A custom LSP server for PHP with WordPress hooks support.
+//! This crate provides a complete LSP server for PHP, implementing the
+//! Language Server Protocol specification with focus on PHP-specific features.
 
 pub mod server;
 
-pub use server::run_server;
+use anyhow::Result;
+
+/// Runs the PHP LSP server using stdio for communication
+pub async fn run_server() -> Result<()> {
+    server::run().await
+}

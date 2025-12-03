@@ -1,20 +1,25 @@
 [package]
 name = "php-lsp"
-version.workspace = true
-edition.workspace = true
+version = "0.1.0"
+edition = "2021"
+description = "PHP Language Server Protocol implementation"
 
 [dependencies]
 async-lsp = { version = "0.2.2", features = ["tokio"] }
-tree-sitter = "0.25.10"
+tokio = { version = "1.0", features = ["full"] }
+tree-sitter = "0.24.2"
 tree-sitter-php = "0.24.2"
-tokio = { version = "1", features = ["full"] }
-lsp-types = "0.97"
 ropey = "1.6"
-dashmap = "6"
-thiserror = "2"
-anyhow = "1"
+lsp-types = "0.95"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-url = "2"
+thiserror = "1.0"
+anyhow = "1.0"
+url = "2.0"
+dashmap = "6.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1"
+futures = "0.3"
+tower = "0.4"
+tokio-util = { version = "0.7", features = ["compat"] }

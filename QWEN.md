@@ -208,3 +208,10 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Rust 1.75+ (edition 2021) + async-lsp 0.2.2, tokio runtime, tree-sitter-php 0.24.2, ropey, lsp-types 0.97, tracing, thiserror/anyhow (001-lsp-infrastructure)
+- In-memory document storage using DashMap, no persistent storage (001-lsp-infrastructure)
+
+## Recent Changes
+- 001-lsp-infrastructure: Added Rust 1.75+ (edition 2021) + async-lsp 0.2.2, tokio runtime, tree-sitter-php 0.24.2, ropey, lsp-types 0.97, tracing, thiserror/anyhow
