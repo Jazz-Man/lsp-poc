@@ -103,7 +103,7 @@ impl async_lsp::LanguageServer for LspServer {
         let state = self.state.clone();
         let uri = params.text_document.uri.clone();
 
-        futures::executor::block_on(async {
+        let _ = futures::executor::block_on(async {
             handle_did_open(&state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))?;
 
@@ -122,7 +122,7 @@ impl async_lsp::LanguageServer for LspServer {
         let state = self.state.clone();
         let uri = params.text_document.uri.clone();
 
-        futures::executor::block_on(async {
+        let _ = futures::executor::block_on(async {
             handle_did_change(&state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))?;
 
@@ -140,7 +140,7 @@ impl async_lsp::LanguageServer for LspServer {
     ) -> Self::NotifyResult {
         let state = self.state.clone();
 
-        futures::executor::block_on(async {
+        let _ = futures::executor::block_on(async {
             handle_did_close(&state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))
         });
