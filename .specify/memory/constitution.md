@@ -1,55 +1,41 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!-- 
+Sync Impact Report:
+- Version change: N/A → 1.0.0
+- Modified principles: N/A (new constitution)
+- Added sections: All principles and sections
+- Removed sections: N/A
+- Templates requiring updates: ⚠ pending - .specify/templates/plan-template.md, .specify/templates/spec-template.md, .specify/templates/tasks-template.md, .specify/templates/commands/*.md
+- Follow-up TODOs: RATIFICATION_DATE needs to be set to actual ratification date
+-->
+# PHP LSP Server Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### DOCUMENTATION FIRST
+Before writing ANY code: Read documentation from `target/doc-md/` for available crates and APIs; Use `cargo info <crate>` to check versions and features; DO NOT invent APIs — use ONLY what exists in documentation; If documentation is missing, run `.scripts/regen-docs.sh`
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### ITERATIVE DEVELOPMENT
+Write MAX 20-30 lines at a time; After EVERY change: `cargo check`; If errors: FIX IMMEDIATELY before continuing; After fix confirmed: `git commit -m "..."; NEVER proceed with broken code; NEVER say "errors exist but out of scope"
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### USE EXISTING FUNCTIONALITY
+Check if feature exists in dependencies before implementing; async-lsp likely has what you need — READ ITS DOCS; Don't reinvent wheels; Prefer composition over custom implementations
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### CODE QUALITY STANDARDS
+All handlers must be async and non-blocking; Error handling with thiserror/anyhow (no unwrap in production code); Tracing for all logging (not println!); Tests for each module; Documentation comments for public APIs
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### PHP & WORDPRESS SPECIFICS
+Support PHP 8+ syntax fully; Parse PHPDoc annotations: @param, @return, @var, @template, @psalm-*, @phpstan-*; WordPress Hook API: all 18 functions with go-to-definition; composer.json integration: PHP version detection, ext-* warnings, PSR-4/PSR-0 autoload
 
-### [PRINCIPLE_6_NAME]
+### SPECIFICATION-DRIVEN DEVELOPMENT (SDD)
+Follow Specification-Driven Development (SDD) principles with spec-kit-plus; Create detailed specs before implementation; Break down features into testable tasks; Ensure all outputs strictly follow user intent
 
+## Technology Stack Requirements
+Language: Rust (edition 2021); LSP Framework: async-lsp 0.2.2 with tokio runtime; PHP Parser: tree-sitter-php 0.24.2; Text Handling: ropey for rope-based incremental text; LSP Types: lsp-types 0.97; Target Editor: Zed (via WebAssembly extension using zed_extension_api)
 
-[PRINCIPLE__DESCRIPTION]
-
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
-
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
-
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
-
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+## Development Workflow
+Follow feature phases in order: 1) Core Infrastructure (LSP lifecycle, document sync, PHP parsing), 2) Symbol Navigation (Document symbols, go-to-definition, references), 3) Code Completion (Variables, members, classes, signature help), 4) WordPress Hooks (Hook navigation, completion, hover), 5) Composer Integration (PHP version, autoload, vendor navigation); Each task follows implementation contract: Read docs → Write code (max 30 lines) → cargo check → Fix errors → Commit → Next task
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+Constitution supersedes all other practices; Amendments require documentation, approval, migration plan; All PRs/reviews must verify compliance; Complexity must be justified; Use development principles for runtime guidance
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: TODO(RATIFICATION_DATE): Original adoption date unknown | **Last Amended**: 2025-12-03
