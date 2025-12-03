@@ -9,32 +9,34 @@ pub mod types;
 pub mod lifecycle;
 pub mod document_sync;
 pub mod parsing;
-pub mod transport;
 pub mod benchmarks;
 
-use async_lsp::{LspService, ResponseError};
+use async_lsp::{ResponseError, LanguageServer, ClientSocket};
 use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    InitializedParams, InitializeParams, InitializeResult,
+    InitializedParams, InitializeParams, InitializeResult, Shutdown, Exit,
 };
 use serde_json::Value;
+use futures::future::BoxFuture;
+use std::ops::ControlFlow;
 
 use crate::server::types::{LspServerState, create_server_state};
 use crate::server::lifecycle::{handle_initialize, handle_initialized, handle_shutdown, handle_exit};
 use crate::server::document_sync::{handle_did_open, handle_did_change, handle_did_close};
 use crate::server::parsing::parse_and_cache_document;
-use crate::server::transport::run_stdio_transport;
 
 /// Main LSP server struct that implements the async-lsp handlers
 pub struct LspServer {
     pub state: LspServerState,
+    pub client: ClientSocket,
 }
 
 impl LspServer {
     /// Create a new instance of the LSP server
-    pub fn new() -> Self {
+    pub fn new(client: ClientSocket) -> Self {
         Self {
             state: create_server_state(),
+            client,
         }
     }
 }
@@ -43,102 +45,134 @@ impl LspServer {
 pub type LspServerError = ResponseError;
 
 impl async_lsp::LanguageServer for LspServer {
-    type Error = LspServerError;
-    type NotifyResult = std::result::Result<(), Self::Error>;
+    type Error = ResponseError;
+    type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
     fn initialize(
         &mut self,
         params: InitializeParams,
-    ) -> async_lsp::Result<InitializeResult> {
-        // Convert to async block to call async function
-        use futures::FutureExt;
-        async move {
-            handle_initialize(&self.state, params).await
+    ) -> BoxFuture<'static, Result<InitializeResult, Self::Error>> {
+        let state = self.state.clone();
+        Box::pin(async move {
+            handle_initialize(&state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        }.boxed()
+        })
     }
 
     fn initialized(
         &mut self,
         params: InitializedParams,
-    ) -> async_lsp::Result<()> {
-        use futures::FutureExt;
-        async move {
-            handle_initialized(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        }.boxed()
+    ) -> Self::NotifyResult {
+        let state = self.state.clone();
+        futures::executor::block_on(async {
+            handle_initialized(&state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))
+        });
+        ControlFlow::Continue(())
     }
 
     fn shutdown(
         &mut self,
-    ) -> async_lsp::Result<Value> {
-        use futures::FutureExt;
-        async move {
-            handle_shutdown(&self.state).await
+        _params: <Shutdown as async_lsp::lsp_types::request::Request>::Params,
+    ) -> BoxFuture<'static, Result<<Shutdown as async_lsp::lsp_types::request::Request>::Result, Self::Error>> {
+        let state = self.state.clone();
+        Box::pin(async move {
+            handle_shutdown(&state).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        }.boxed()
+        })
     }
 
     fn exit(
         &mut self,
-    ) -> std::result::Result<(), async_lsp::Error> {
-        use futures::FutureExt;
-        async move {
-            handle_exit(&self.state).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        }.boxed().into()
+        _params: <Exit as async_lsp::lsp_types::notification::Notification>::Params,
+    ) -> Self::NotifyResult {
+        let state = self.state.clone();
+        futures::executor::block_on(async {
+            handle_exit(&state).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))
+        });
+        ControlFlow::Continue(())
     }
 
     fn did_open(
         &mut self,
         params: DidOpenTextDocumentParams,
-    ) -> async_lsp::Result<()> {
-        use futures::FutureExt;
-        async move {
-            handle_did_open(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))?;
+    ) -> Self::NotifyResult {
+        let state = self.state.clone();
+        let uri = params.text_document.uri.clone();
+
+        futures::executor::block_on(async {
+            handle_did_open(&state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))?;
 
             // After opening, we should parse the document
-            let _ = parse_and_cache_document(&self.state, &params.text_document.uri).await;
+            let _ = parse_and_cache_document(&state, &uri).await;
 
             Ok(())
-        }.boxed()
+        });
+        ControlFlow::Continue(())
     }
 
     fn did_change(
         &mut self,
         params: DidChangeTextDocumentParams,
-    ) -> async_lsp::Result<()> {
-        use futures::FutureExt;
-        async move {
-            handle_did_change(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))?;
+    ) -> Self::NotifyResult {
+        let state = self.state.clone();
+        let uri = params.text_document.uri.clone();
+
+        futures::executor::block_on(async {
+            handle_did_change(&state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))?;
 
             // After changes, we should reparse the document
-            let uri = &params.text_document.uri;
-            let _ = parse_and_cache_document(&self.state, uri).await;
+            let _ = parse_and_cache_document(&state, &uri).await;
 
             Ok(())
-        }.boxed()
+        });
+        ControlFlow::Continue(())
     }
 
     fn did_close(
         &mut self,
         params: DidCloseTextDocumentParams,
-    ) -> async_lsp::Result<()> {
-        use futures::FutureExt;
-        async move {
-            handle_did_close(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        }.boxed()
+    ) -> Self::NotifyResult {
+        let state = self.state.clone();
+
+        futures::executor::block_on(async {
+            handle_did_close(&state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))
+        });
+        ControlFlow::Continue(())
     }
 }
 
 /// Run the LSP server
 pub async fn run() -> anyhow::Result<()> {
-    async_lsp::start_server(
-        |client| LspService::new(LspServer::new(), client),
-        |socket| async { async_lsp::ServerSocket::stdio() }.boxed()
-    ).await?;
+    use async_lsp::router::Router;
+    use async_lsp::server::LifecycleLayer;
+    use async_lsp::tracing::TracingLayer;
+    use tower::ServiceBuilder;
+
+    let (server, _) = async_lsp::MainLoop::new_server(|client| {
+        ServiceBuilder::new()
+            .layer(TracingLayer::default())
+            .layer(LifecycleLayer::default())
+            .service(Router::from_language_server(LspServer::new(client)))
+    });
+
+    // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
+    #[cfg(unix)]
+    let (stdin, stdout) = (
+        async_lsp::stdio::PipeStdin::lock_tokio()?,
+        async_lsp::stdio::PipeStdout::lock_tokio()?,
+    );
+    // Fallback to spawn blocking read/write otherwise.
+    #[cfg(not(unix))]
+    let (stdin, stdout) = (
+        tokio_util::compat::TokioAsyncReadCompatExt::compat(tokio::io::stdin()),
+        tokio_util::compat::TokioAsyncWriteCompatExt::compat_write(tokio::io::stdout()),
+    );
+
+    server.run_buffered(stdin, stdout).await?;
     Ok(())
 }
