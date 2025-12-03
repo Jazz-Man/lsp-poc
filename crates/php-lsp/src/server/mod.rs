@@ -37,21 +37,6 @@ impl LspServer {
             state: create_server_state(),
         }
     }
-
-    /// Run the LSP server
-    pub async fn run(&self) -> anyhow::Result<()> {
-        // Create the LSP service with proper handler methods
-        let service = LspService::new(|client| {
-            Self {
-                state: create_server_state(),
-            }
-        });
-
-        // Run the server with stdio transport
-        run_stdio_transport(service).await?;
-
-        Ok(())
-    }
 }
 
 // Define the error type for our LSP server
@@ -59,51 +44,57 @@ pub type LspServerError = ResponseError;
 
 impl async_lsp::LanguageServer for LspServer {
     type Error = LspServerError;
-    type NotifyResult = async_lsp::Result<()>;
+    type NotifyResult = std::result::Result<(), Self::Error>;
 
     fn initialize(
         &mut self,
         params: InitializeParams,
-    ) -> Pin<Box<dyn Future<Output = Result<InitializeResult, Self::Error>> + Send>> {
-        Box::pin(async move {
+    ) -> async_lsp::Result<InitializeResult> {
+        // Convert to async block to call async function
+        use futures::FutureExt;
+        async move {
             handle_initialize(&self.state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        })
+        }.boxed()
     }
 
     fn initialized(
         &mut self,
         params: InitializedParams,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-        Box::pin(async move {
+    ) -> async_lsp::Result<()> {
+        use futures::FutureExt;
+        async move {
             handle_initialized(&self.state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        })
+        }.boxed()
     }
 
     fn shutdown(
         &mut self,
-    ) -> Pin<Box<dyn Future<Output = Result<Value, Self::Error>> + Send>> {
-        Box::pin(async move {
+    ) -> async_lsp::Result<Value> {
+        use futures::FutureExt;
+        async move {
             handle_shutdown(&self.state).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        })
+        }.boxed()
     }
 
     fn exit(
         &mut self,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-        Box::pin(async move {
+    ) -> std::result::Result<(), async_lsp::Error> {
+        use futures::FutureExt;
+        async move {
             handle_exit(&self.state).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        })
+        }.boxed().into()
     }
 
     fn did_open(
         &mut self,
         params: DidOpenTextDocumentParams,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-        Box::pin(async move {
+    ) -> async_lsp::Result<()> {
+        use futures::FutureExt;
+        async move {
             handle_did_open(&self.state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))?;
 
@@ -111,14 +102,15 @@ impl async_lsp::LanguageServer for LspServer {
             let _ = parse_and_cache_document(&self.state, &params.text_document.uri).await;
 
             Ok(())
-        })
+        }.boxed()
     }
 
     fn did_change(
         &mut self,
         params: DidChangeTextDocumentParams,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-        Box::pin(async move {
+    ) -> async_lsp::Result<()> {
+        use futures::FutureExt;
+        async move {
             handle_did_change(&self.state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))?;
 
@@ -127,25 +119,26 @@ impl async_lsp::LanguageServer for LspServer {
             let _ = parse_and_cache_document(&self.state, uri).await;
 
             Ok(())
-        })
+        }.boxed()
     }
 
     fn did_close(
         &mut self,
         params: DidCloseTextDocumentParams,
-    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-        Box::pin(async move {
+    ) -> async_lsp::Result<()> {
+        use futures::FutureExt;
+        async move {
             handle_did_close(&self.state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
-        })
+        }.boxed()
     }
 }
 
 /// Run the LSP server
 pub async fn run() -> anyhow::Result<()> {
-    let server = LspServer::new();
-    let service = LspService::new(server, |client| {
-        // This closure allows for custom client handling if needed
-    });
-    run_stdio_transport(service).await
+    async_lsp::start_server(
+        |client| LspService::new(LspServer::new(), client),
+        |socket| async { async_lsp::ServerSocket::stdio() }.boxed()
+    ).await?;
+    Ok(())
 }
