@@ -8,7 +8,7 @@
 use async_lsp::ResponseError;
 use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    TextDocumentContentChangeEvent, Position,
+    TextDocumentContentChangeEvent,
 };
 
 use crate::server::types::{Document, LspServerState};
