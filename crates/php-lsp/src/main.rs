@@ -4,7 +4,7 @@
 //! to determine the communication transport mode.
 
 use std::env;
-use php_lsp::server::run_server;
+use php_lsp::run_server;
 
 /// Main entry point for the PHP LSP server
 #[tokio::main]
@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize tracing subscriber for structured logging
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .json()
+        .with_ansi(true)
         .init();
 
     // Parse command-line arguments
