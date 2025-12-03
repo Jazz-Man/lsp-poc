@@ -11,12 +11,13 @@ pub mod document_sync;
 pub mod parsing;
 pub mod benchmarks;
 
-use async_lsp::{ResponseError, LanguageServer, ClientSocket};
+use async_lsp::{ResponseError, ClientSocket};
 use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    InitializedParams, InitializeParams, InitializeResult, Shutdown, Exit,
+    InitializedParams, InitializeParams, InitializeResult,
 };
-use serde_json::Value;
+use async_lsp::lsp_types::request::Shutdown;
+use async_lsp::lsp_types::notification::Exit;
 use futures::future::BoxFuture;
 use std::ops::ControlFlow;
 
@@ -55,7 +56,7 @@ impl async_lsp::LanguageServer for LspServer {
         let state = self.state.clone();
         Box::pin(async move {
             handle_initialize(&state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INTERNAL_ERROR, e.to_string()))
         })
     }
 
@@ -66,7 +67,7 @@ impl async_lsp::LanguageServer for LspServer {
         let state = self.state.clone();
         futures::executor::block_on(async {
             handle_initialized(&state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))
         });
         ControlFlow::Continue(())
     }
@@ -78,7 +79,8 @@ impl async_lsp::LanguageServer for LspServer {
         let state = self.state.clone();
         Box::pin(async move {
             handle_shutdown(&state).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
+                .map(|_| ())
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INTERNAL_ERROR, e.to_string()))
         })
     }
 
@@ -89,7 +91,7 @@ impl async_lsp::LanguageServer for LspServer {
         let state = self.state.clone();
         futures::executor::block_on(async {
             handle_exit(&state).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))
         });
         ControlFlow::Continue(())
     }
@@ -103,12 +105,12 @@ impl async_lsp::LanguageServer for LspServer {
 
         futures::executor::block_on(async {
             handle_did_open(&state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))?;
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))?;
 
             // After opening, we should parse the document
             let _ = parse_and_cache_document(&state, &uri).await;
 
-            Ok(())
+            Result::<(), ResponseError>::Ok(())
         });
         ControlFlow::Continue(())
     }
@@ -122,12 +124,12 @@ impl async_lsp::LanguageServer for LspServer {
 
         futures::executor::block_on(async {
             handle_did_change(&state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))?;
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))?;
 
             // After changes, we should reparse the document
             let _ = parse_and_cache_document(&state, &uri).await;
 
-            Ok(())
+            Result::<(), ResponseError>::Ok(())
         });
         ControlFlow::Continue(())
     }
@@ -140,7 +142,7 @@ impl async_lsp::LanguageServer for LspServer {
 
         futures::executor::block_on(async {
             handle_did_close(&state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InvalidRequest, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))
         });
         ControlFlow::Continue(())
     }
