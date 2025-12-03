@@ -3,8 +3,7 @@
 //! Contains functions for benchmarking key performance metrics of the LSP server.
 
 use std::time::Instant;
-use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
-use url::Url;
+use async_lsp::lsp_types::{DidOpenTextDocumentParams, TextDocumentItem, Uri};
 use std::str::FromStr;
 
 use crate::server::types::LspServerState;
@@ -14,7 +13,7 @@ pub async fn benchmark_document_operations(state: &LspServerState) {
     let start_time = Instant::now();
 
     // Create a test document
-    let test_uri = Url::from_str("file:///benchmark_test.php").unwrap();
+    let test_uri = Uri::from_str("file:///benchmark_test.php").unwrap();
     let test_content = "<?php\nfor ($i = 0; $i < 100; $i++) {\n    echo \"Item $i\\n\";\n}".repeat(50); // Create a larger document
 
     let params = DidOpenTextDocumentParams {
