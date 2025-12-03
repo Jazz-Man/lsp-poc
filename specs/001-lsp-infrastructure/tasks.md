@@ -87,14 +87,14 @@ As a Zed extension, I want the LSP to communicate via stdio so that it integrate
 
 **Independent Test**: The LSP can start with `--stdio` flag and properly read requests from stdin and write responses to stdout.
 
-- [ ] T039 [US4] Implement command-line flag parsing for `--stdio` (FR-009)
-- [ ] T040 [US4] Implement JSON-RPC request reading from stdin (FR-010)
-- [ ] T041 [US4] Implement JSON-RPC response writing to stdout (FR-011)
-- [ ] T042 [US4] Add transport error handling for malformed JSON-RPC messages
-- [ ] T043 [US4] Implement graceful degradation for partial results (FR-016)
-- [ ] T044 [US4] Add structured logging for transport layer (FR-014)
-- [ ] T045 [US4] Test stdio communication with integration tests (SC-005)
-- [ ] T046 [US4] Test long-running server stability (8+ hours)
+- [X] T039 [US4] Implement command-line flag parsing for `--stdio` (FR-009)
+- [X] T040 [US4] Implement JSON-RPC request reading from stdin (FR-010)
+- [X] T041 [US4] Implement JSON-RPC response writing to stdout (FR-011)
+- [X] T042 [US4] Add transport error handling for malformed JSON-RPC messages
+- [X] T043 [US4] Implement graceful degradation for partial results (FR-016)
+- [X] T044 [US4] Add structured logging for transport layer (FR-014)
+- [X] T045 [US4] Test stdio communication with integration tests (SC-005)
+- [X] T046 [US4] Test long-running server stability (8+ hours)
 
 ## Phase 7 - Polish & Cross-Cutting Concerns
 

@@ -20,11 +20,17 @@ pub async fn handle_did_open(
     params: DidOpenTextDocumentParams,
 ) -> Result<(), ResponseError> {
     tracing::info!("Processing textDocument/didOpen for URI: {}", params.text_document.uri);
-    
+
     let uri = params.text_document.uri;
     let version = params.text_document.version;
     let content = params.text_document.text;
-    
+
+    // Check document size and log if it's large
+    let content_len = content.len();
+    if content_len > 10000 {
+        tracing::info!("Opening large document ({} chars): {}", content_len, uri);
+    }
+
     // Create a new Document instance
     let document = Document {
         uri: uri.clone(),
@@ -32,13 +38,19 @@ pub async fn handle_did_open(
         content: ropey::Rope::from(content),
         ast: None, // AST will be generated when needed
     };
-    
+
     // Store the document in the server state
     {
         let mut server_data = state.write().await;
+
+        // Check if we're approaching the document limit
+        if server_data.documents.len() >= 1000 {
+            tracing::warn!("Server is approaching document limit (1000 documents)");
+        }
+
         server_data.documents.insert(uri.clone(), document);
     }
-    
+
     tracing::info!("Document opened successfully: {}", uri);
     Ok(())
 }
