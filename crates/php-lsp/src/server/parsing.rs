@@ -94,35 +94,37 @@ pub async fn get_or_parse_document_ast(
     state: &LspServerState,
     uri: &async_lsp::lsp_types::Url,
 ) -> Option<AstWrapper> {
-    // First check if we already have a parsed AST that's up to date
-    let (needs_parse, doc_exists) = {
+    // First check if the document exists and has an up-to-date AST
+    let doc_exists = {
+        let server_data = state.read().await;
+        server_data.documents.contains_key(uri)
+    }; // server_data is dropped here
+
+    if !doc_exists {
+        return None; // Document doesn't exist
+    }
+
+    // Check if we already have a parsed AST that's up to date
+    let has_up_to_date_ast = {
         let server_data = state.read().await;
         if let Some(doc) = server_data.documents.get(uri) {
-            let needs_parse = if let Some(ref ast) = doc.ast {
+            if let Some(ref ast) = doc.ast {
                 // Check if AST is up-to-date with document version
-                ast.version != doc.version
+                ast.version == doc.version
             } else {
-                // No AST exists for this document
-                true
-            };
-
-            (needs_parse, true) // Document exists
+                false // No AST exists
+            }
         } else {
-            (false, false) // Document doesn't exist
+            false // Document doesn't exist (though we checked before)
         }
     }; // server_data is dropped here
 
-    // If document doesn't exist, return early
-    if !doc_exists {
-        return None;
-    }
-
-    // If AST is outdated, parse the document
-    if needs_parse {
+    // If AST is not up-to-date, parse the document
+    if !has_up_to_date_ast {
         let _ = parse_and_cache_document(state, uri).await;
     }
 
-    // Now get the AST regardless (either it was already there or we just parsed it)
+    // Now get the AST (either it was already up-to-date or we just parsed it)
     let server_data = state.read().await;
     if let Some(doc) = server_data.documents.get(uri) {
         if let Some(ref ast) = doc.ast {
