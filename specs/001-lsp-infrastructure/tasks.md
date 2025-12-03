@@ -72,14 +72,14 @@ As a developer, I want PHP files to be parsed correctly so that all language fea
 
 **Independent Test**: The LSP can parse a PHP document and create an AST representation that other features can use for analysis.
 
-- [ ] T031 [US3] Integrate tree-sitter-php parsing library
-- [ ] T032 [US3] Implement document parsing function with tree-sitter (FR-008)
-- [ ] T033 [US3] Implement AST caching with document version tracking
-- [ ] T034 [US3] Add error handling for parse errors with partial AST support (FR-012)
-- [ ] T035 [US3] Add support for PHP 8+ syntax features (FR-013, FR-015)
-- [ ] T036 [US3] Add PHP 7.4+ syntax validation and support
-- [ ] T037 [US3] Implement parsing performance metrics and success rate tracking (SC-003)
-- [ ] T038 [US3] Test PHP parsing with various syntax versions and error conditions
+- [X] T031 [US3] Integrate tree-sitter-php parsing library
+- [X] T032 [US3] Implement document parsing function with tree-sitter (FR-008)
+- [X] T033 [US3] Implement AST caching with document version tracking
+- [X] T034 [US3] Add error handling for parse errors with partial AST support (FR-012)
+- [X] T035 [US3] Add support for PHP 8+ syntax features (FR-013, FR-015)
+- [X] T036 [US3] Add PHP 7.4+ syntax validation and support
+- [X] T037 [US3] Implement parsing performance metrics and success rate tracking (SC-003)
+- [X] T038 [US3] Test PHP parsing with various syntax versions and error conditions
 
 ## Phase 6 - User Story 4: stdio Transport (Priority: P4)
 
