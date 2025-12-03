@@ -13,7 +13,7 @@ pub mod transport;
 pub mod benchmarks;
 
 use async_lsp::{LspService, ResponseError};
-use lsp_types::{
+use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     InitializedParams, InitializeParams, InitializeResult,
 };
@@ -24,8 +24,6 @@ use crate::server::lifecycle::{handle_initialize, handle_initialized, handle_shu
 use crate::server::document_sync::{handle_did_open, handle_did_change, handle_did_close};
 use crate::server::parsing::parse_and_cache_document;
 use crate::server::transport::run_stdio_transport;
-use std::future::Future;
-use std::pin::Pin;
 
 /// Main LSP server struct that implements the async-lsp handlers
 pub struct LspServer {
@@ -69,7 +67,7 @@ impl async_lsp::LanguageServer for LspServer {
     ) -> Pin<Box<dyn Future<Output = Result<InitializeResult, Self::Error>> + Send>> {
         Box::pin(async move {
             handle_initialize(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
         })
     }
 
@@ -79,7 +77,7 @@ impl async_lsp::LanguageServer for LspServer {
     ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
         Box::pin(async move {
             handle_initialized(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
         })
     }
 
@@ -88,7 +86,7 @@ impl async_lsp::LanguageServer for LspServer {
     ) -> Pin<Box<dyn Future<Output = Result<Value, Self::Error>> + Send>> {
         Box::pin(async move {
             handle_shutdown(&self.state).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
         })
     }
 
@@ -97,7 +95,7 @@ impl async_lsp::LanguageServer for LspServer {
     ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
         Box::pin(async move {
             handle_exit(&self.state).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
         })
     }
 
@@ -107,7 +105,7 @@ impl async_lsp::LanguageServer for LspServer {
     ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
         Box::pin(async move {
             handle_did_open(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))?;
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))?;
 
             // After opening, we should parse the document
             let _ = parse_and_cache_document(&self.state, &params.text_document.uri).await;
@@ -122,7 +120,7 @@ impl async_lsp::LanguageServer for LspServer {
     ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
         Box::pin(async move {
             handle_did_change(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))?;
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))?;
 
             // After changes, we should reparse the document
             let uri = &params.text_document.uri;
@@ -138,7 +136,7 @@ impl async_lsp::LanguageServer for LspServer {
     ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
         Box::pin(async move {
             handle_did_close(&self.state, params).await
-                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::InternalError, e.to_string()))
         })
     }
 }
@@ -146,6 +144,8 @@ impl async_lsp::LanguageServer for LspServer {
 /// Run the LSP server
 pub async fn run() -> anyhow::Result<()> {
     let server = LspServer::new();
-    let service = LspService::new(server);
+    let service = LspService::new(server, |client| {
+        // This closure allows for custom client handling if needed
+    });
     run_stdio_transport(service).await
 }
