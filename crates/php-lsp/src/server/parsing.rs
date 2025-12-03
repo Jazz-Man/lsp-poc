@@ -18,7 +18,7 @@ pub struct AstWrapper {
 pub fn parse_php_document(content: &str, version: i32) -> Result<AstWrapper, Box<dyn std::error::Error>> {
     let mut parser = Parser::new();
     parser
-        .set_language(tree_sitter_php::language())
+        .set_language(&tree_sitter_php::language())
         .map_err(|e| format!("Error setting PHP language: {}", e))?;
 
     let tree = parser
