@@ -5,17 +5,18 @@
 use std::time::Instant;
 use lsp_types::{DidOpenTextDocumentParams, TextDocumentItem};
 use url::Url;
+use std::str::FromStr;
 
 use crate::server::types::LspServerState;
 
 /// Benchmark document operations performance
 pub async fn benchmark_document_operations(state: &LspServerState) {
     let start_time = Instant::now();
-    
+
     // Create a test document
-    let test_uri = StdUrl::parse("file:///benchmark_test.php").unwrap();
+    let test_uri = Url::from_str("file:///benchmark_test.php").unwrap();
     let test_content = "<?php\nfor ($i = 0; $i < 100; $i++) {\n    echo \"Item $i\\n\";\n}".repeat(50); // Create a larger document
-    
+
     let params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: test_uri.clone(),
