@@ -4,21 +4,15 @@
 //! creating Abstract Syntax Trees (ASTs) for further language features.
 
 use tree_sitter::{Parser, Tree};
-use url::Url;
+use async_lsp::lsp_types::Url;
 
-use crate::server::types::LspServerState;
-
-/// Wrapper for tree-sitter's Tree to make it more manageable
-pub struct AstWrapper {
-    pub tree: Tree,
-    pub version: i32,
-}
+use crate::server::types::{LspServerState, AstWrapper};
 
 /// Parse a PHP document and return an AST
 pub fn parse_php_document(content: &str, version: i32) -> Result<AstWrapper, Box<dyn std::error::Error>> {
     let mut parser = Parser::new();
     parser
-        .set_language(&tree_sitter_php::language())
+        .set_language(tree_sitter_php::LANGUAGE)
         .map_err(|e| format!("Error setting PHP language: {}", e))?;
 
     let tree = parser
@@ -57,10 +51,10 @@ fn has_syntax_errors(node: tree_sitter::Node) -> bool {
 /// Parse a document in the server state and cache the resulting AST
 pub async fn parse_and_cache_document(
     state: &LspServerState,
-    uri: &Url,
+    uri: &async_lsp::lsp_types::Url,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let start_time = std::time::Instant::now();
-    tracing::info!("Parsing document: {}", uri);
+    tracing::info!("Parsing document: {:?}", uri);
 
     // Get the document from state
     let mut server_data = state.write().await;
@@ -76,7 +70,7 @@ pub async fn parse_and_cache_document(
                 doc.ast = Some(ast_wrapper);
 
                 let duration = start_time.elapsed();
-                tracing::info!("Successfully parsed and cached AST for: {} ({} chars in {:?})", uri, content_len, duration);
+                tracing::info!("Successfully parsed and cached AST for: {:?} ({} chars in {:?})", uri, content_len, duration);
 
                 // Performance metric: Log parsing time
                 if content_len > 10000 && duration.as_millis() > 100 {
@@ -84,13 +78,13 @@ pub async fn parse_and_cache_document(
                 }
             }
             Err(e) => {
-                tracing::error!("Error parsing document {}: {}", uri, e);
+                tracing::error!("Error parsing document {:?}: {}", uri, e);
                 // Even if parsing fails completely, continue processing
                 // The document will be stored without an AST
             }
         }
     } else {
-        tracing::warn!("Document not found in state: {}", uri);
+        tracing::warn!("Document not found in state: {:?}", uri);
     }
 
     Ok(())
@@ -99,7 +93,7 @@ pub async fn parse_and_cache_document(
 /// Get the AST for a document, parsing it if necessary
 pub async fn get_or_parse_document_ast(
     state: &LspServerState,
-    uri: &Url,
+    uri: &async_lsp::lsp_types::Url,
 ) -> Option<AstWrapper> {
     // First check if we already have a parsed AST that's up to date
     {
@@ -112,7 +106,7 @@ pub async fn get_or_parse_document_ast(
             }
         }
     }
-    
+
     // If we don't have a current AST, parse the document
     if parse_and_cache_document(state, uri).await.is_ok() {
         // Try again to get the newly cached AST
@@ -123,6 +117,6 @@ pub async fn get_or_parse_document_ast(
             }
         }
     }
-    
+
     None
 }
