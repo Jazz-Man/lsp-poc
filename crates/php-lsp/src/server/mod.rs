@@ -65,7 +65,7 @@ impl async_lsp::LanguageServer for LspServer {
         params: InitializedParams,
     ) -> Self::NotifyResult {
         let state = self.state.clone();
-        futures::executor::block_on(async {
+        let _ = futures::executor::block_on(async {
             handle_initialized(&state, params).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))
         });
@@ -89,7 +89,7 @@ impl async_lsp::LanguageServer for LspServer {
         _params: <Exit as async_lsp::lsp_types::notification::Notification>::Params,
     ) -> Self::NotifyResult {
         let state = self.state.clone();
-        futures::executor::block_on(async {
+        let _ = futures::executor::block_on(async {
             handle_exit(&state).await
                 .map_err(|e| ResponseError::new(async_lsp::ErrorCode::INVALID_REQUEST, e.to_string()))
         });
