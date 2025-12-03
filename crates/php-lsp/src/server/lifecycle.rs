@@ -3,7 +3,7 @@
 //! This module handles the core LSP lifecycle requests: initialize, initialized, shutdown, and exit.
 
 use async_lsp::{ResponseError};
-use lsp_types::{
+use async_lsp::lsp_types::{
     InitializeParams, InitializeResult, InitializedParams, ServerInfo,
     TextDocumentSyncCapability, TextDocumentSyncKind, ServerCapabilities,
 };
@@ -30,11 +30,11 @@ pub async fn handle_initialize(
         text_document_sync: Some(TextDocumentSyncCapability::Kind(
             TextDocumentSyncKind::INCREMENTAL,
         )),
-        hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
-        definition_provider: Some(lsp_types::OneOf::Left(true)),
-        references_provider: Some(lsp_types::OneOf::Left(true)),
-        document_symbol_provider: Some(lsp_types::OneOf::Left(true)),
-        completion_provider: Some(lsp_types::CompletionOptions {
+        hover_provider: Some(async_lsp::lsp_types::HoverProviderCapability::Simple(true)),
+        definition_provider: Some(async_lsp::lsp_types::OneOf::Left(true)),
+        references_provider: Some(async_lsp::lsp_types::OneOf::Left(true)),
+        document_symbol_provider: Some(async_lsp::lsp_types::OneOf::Left(true)),
+        completion_provider: Some(async_lsp::lsp_types::CompletionOptions {
             resolve_provider: Some(false),
             trigger_characters: Some(vec!["$".to_string(), ">".to_string(), "::".to_string()]),
             ..Default::default()
