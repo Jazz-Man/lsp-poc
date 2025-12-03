@@ -16,7 +16,6 @@ async fn test_full_lsp_workflow() {
     // Test 1: Initialize the server
     let init_params = InitializeParams {
         process_id: None,
-        root_path: None,
         root_uri: None,
         initialization_options: None,
         capabilities: ClientCapabilities::default(),
@@ -25,6 +24,7 @@ async fn test_full_lsp_workflow() {
         client_info: None,
         locale: None,
         work_done_progress_params: Default::default(),
+        client_capabilities: None,
     };
 
     let init_result = lifecycle::handle_initialize(&state, init_params).await;
