@@ -100,17 +100,17 @@ As a Zed extension, I want the LSP to communicate via stdio so that it integrate
 
 Final implementation and cross-cutting concerns to complete the feature.
 
-- [ ] T047 Implement support for up to 1,000 documents with performance monitoring (SC-006)
-- [ ] T048 Implement memory-efficient processing for large documents (>10,000 lines) with configurable limits and progress reporting (FR-017, Edge Case: Large file handling)
-- [ ] T049 Implement graceful degradation for syntax errors (FR-016)
-- [ ] T050 Define and implement performance benchmarks for key metrics: initialization time, document sync operations, parsing speed, and memory usage per document count (FR-017)
-- [ ] T051 Add comprehensive logging for observability with structured JSON format and performance metrics (FR-018)
-- [ ] T052 Write integration tests covering all user stories
-- [ ] T053 Document the API and usage in README
-- [ ] T054 Test end-to-end integration with Zed editor
-- [ ] T055 Performance optimization and memory usage validation
-- [ ] T056 Implement error handling for malformed JSON-RPC messages with appropriate logging and client responses (Edge Case: Malformed JSON-RPC)
-- [ ] T057 Implement error handling for severe syntax errors with partial AST generation and graceful degradation (Edge Case: Severe syntax errors)
+- [X] T047 Implement support for up to 1,000 documents with performance monitoring (SC-006)
+- [X] T048 Implement memory-efficient processing for large documents (>10,000 lines) with configurable limits and progress reporting (FR-017, Edge Case: Large file handling)
+- [X] T049 Implement graceful degradation for syntax errors (FR-016)
+- [X] T050 Define and implement performance benchmarks for key metrics: initialization time, document sync operations, parsing speed, and memory usage per document count (FR-017)
+- [X] T051 Add comprehensive logging for observability with structured JSON format and performance metrics (FR-018)
+- [X] T052 Write integration tests covering all user stories
+- [X] T053 Document the API and usage in README
+- [X] T054 Test end-to-end integration with Zed editor
+- [X] T055 Performance optimization and memory usage validation
+- [X] T056 Implement error handling for malformed JSON-RPC messages with appropriate logging and client responses (Edge Case: Malformed JSON-RPC)
+- [X] T057 Implement error handling for severe syntax errors with partial AST generation and graceful degradation (Edge Case: Severe syntax errors)
 
 ## Implementation Strategy (MVP First)
 
