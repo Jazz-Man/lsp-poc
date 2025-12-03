@@ -5,11 +5,12 @@ edition = "2021"
 description = "PHP Language Server Protocol implementation"
 
 [dependencies]
-async-lsp = { version = "0.2.2", features = ["lsp-types"] }
+async-lsp = "0.2.2"
 tokio = { version = "1.0", features = ["full"] }
 tree-sitter = "0.24.2"
 tree-sitter-php = "0.24.2"
 ropey = "1.6"
+lsp-types = "0.97"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1.0"
