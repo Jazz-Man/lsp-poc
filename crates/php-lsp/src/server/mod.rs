@@ -56,82 +56,90 @@ impl LspServer {
     }
 }
 
-#[async_lsp::async_trait]
-impl async_lsp::LspServiceFactory for LspServer {
-    type Service = Self;
+// Define the error type for our LSP server
+pub type LspServerError = ResponseError;
 
-    async fn create_service(&self) -> Self::Service {
-        LspServer {
-            state: create_server_state(),
-        }
-    }
-}
-
-#[async_lsp::async_trait]
 impl async_lsp::LanguageServer for LspServer {
-    async fn initialize(
-        &self,
+    type Error = LspServerError;
+    type NotifyResult = async_lsp::Result<()>;
+
+    fn initialize(
+        &mut self,
         params: InitializeParams,
-    ) -> async_lsp::Result<InitializeResult> {
-        handle_initialize(&self.state, params).await
-            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+    ) -> Pin<Box<dyn Future<Output = Result<InitializeResult, Self::Error>> + Send>> {
+        Box::pin(async move {
+            handle_initialize(&self.state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+        })
     }
 
-    async fn initialized(
-        &self,
+    fn initialized(
+        &mut self,
         params: InitializedParams,
-    ) -> async_lsp::Result<()> {
-        handle_initialized(&self.state, params).await
-            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+        Box::pin(async move {
+            handle_initialized(&self.state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+        })
     }
 
-    async fn shutdown(
-        &self,
-    ) -> async_lsp::Result<Value> {
-        handle_shutdown(&self.state).await
-            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+    fn shutdown(
+        &mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, Self::Error>> + Send>> {
+        Box::pin(async move {
+            handle_shutdown(&self.state).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+        })
     }
 
-    async fn exit(
-        &self,
-    ) -> async_lsp::Result<()> {
-        handle_exit(&self.state).await
-            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+    fn exit(
+        &mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+        Box::pin(async move {
+            handle_exit(&self.state).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+        })
     }
 
-    async fn did_open(
-        &self,
+    fn did_open(
+        &mut self,
         params: DidOpenTextDocumentParams,
-    ) -> async_lsp::Result<()> {
-        handle_did_open(&self.state, params).await
-            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))?;
+    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+        Box::pin(async move {
+            handle_did_open(&self.state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))?;
 
-        // After opening, we should parse the document
-        let _ = parse_and_cache_document(&self.state, &params.text_document.uri).await;
+            // After opening, we should parse the document
+            let _ = parse_and_cache_document(&self.state, &params.text_document.uri).await;
 
-        Ok(())
+            Ok(())
+        })
     }
 
-    async fn did_change(
-        &self,
+    fn did_change(
+        &mut self,
         params: DidChangeTextDocumentParams,
-    ) -> async_lsp::Result<()> {
-        handle_did_change(&self.state, params).await
-            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))?;
+    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+        Box::pin(async move {
+            handle_did_change(&self.state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))?;
 
-        // After changes, we should reparse the document
-        let uri = &params.text_document.uri;
-        let _ = parse_and_cache_document(&self.state, uri).await;
+            // After changes, we should reparse the document
+            let uri = &params.text_document.uri;
+            let _ = parse_and_cache_document(&self.state, uri).await;
 
-        Ok(())
+            Ok(())
+        })
     }
 
-    async fn did_close(
-        &self,
+    fn did_close(
+        &mut self,
         params: DidCloseTextDocumentParams,
-    ) -> async_lsp::Result<()> {
-        handle_did_close(&self.state, params).await
-            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+    ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+        Box::pin(async move {
+            handle_did_close(&self.state, params).await
+                .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
+        })
     }
 }
 
