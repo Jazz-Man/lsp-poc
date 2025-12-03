@@ -6,11 +6,10 @@
 //! - textDocument/didClose
 
 use async_lsp::ResponseError;
-use lsp_types::{
+use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     TextDocumentContentChangeEvent,
 };
-use url::Url;
 
 use crate::server::types::{Document, LspServerState};
 
@@ -19,7 +18,7 @@ pub async fn handle_did_open(
     state: &LspServerState,
     params: DidOpenTextDocumentParams,
 ) -> Result<(), ResponseError> {
-    tracing::info!("Processing textDocument/didOpen for URI: {}", params.text_document.uri);
+    tracing::info!("Processing textDocument/didOpen for URI: {:?}", params.text_document.uri);
 
     let uri = params.text_document.uri;
     let version = params.text_document.version;
@@ -28,7 +27,7 @@ pub async fn handle_did_open(
     // Check document size and log if it's large
     let content_len = content.len();
     if content_len > 10000 {
-        tracing::info!("Opening large document ({} chars): {}", content_len, uri);
+        tracing::info!("Opening large document ({} chars): {:?}", content_len, uri);
     }
 
     // Create a new Document instance
@@ -51,7 +50,7 @@ pub async fn handle_did_open(
         server_data.documents.insert(uri.clone(), document);
     }
 
-    tracing::info!("Document opened successfully: {}", uri);
+    tracing::info!("Document opened successfully: {:?}", uri);
     Ok(())
 }
 
@@ -60,7 +59,7 @@ pub async fn handle_did_change(
     state: &LspServerState,
     params: DidChangeTextDocumentParams,
 ) -> Result<(), ResponseError> {
-    tracing::info!("Processing textDocument/didChange for URI: {}", params.text_document.uri);
+    tracing::info!("Processing textDocument/didChange for URI: {:?}", params.text_document.uri);
     
     let uri = params.text_document.uri;
     let changes = params.content_changes;
@@ -79,12 +78,12 @@ pub async fn handle_did_change(
         // Clear the AST since the document content has changed
         document.ast = None;
         
-        tracing::info!("Document changes applied successfully: {}", uri);
+        tracing::info!("Document changes applied successfully: {:?}", uri);
     } else {
-        tracing::warn!("Attempted to change non-existent document: {}", uri);
+        tracing::warn!("Attempted to change non-existent document: {:?}", uri);
         return Err(ResponseError::new(
             async_lsp::ErrorCode::InvalidParams,
-            format!("Document not found: {}", uri),
+            format!("Document not found: {:?}", uri),
         ));
     }
     
@@ -155,19 +154,19 @@ pub async fn handle_did_close(
     state: &LspServerState,
     params: DidCloseTextDocumentParams,
 ) -> Result<(), ResponseError> {
-    tracing::info!("Processing textDocument/didClose for URI: {}", params.text_document.uri);
-    
+    tracing::info!("Processing textDocument/didClose for URI: {:?}", params.text_document.uri);
+
     let uri = params.text_document.uri;
-    
+
     // Remove the document from the server state
     {
         let mut server_data = state.write().await;
         if server_data.documents.remove(&uri).is_some() {
-            tracing::info!("Document closed successfully: {}", uri);
+            tracing::info!("Document closed successfully: {:?}", uri);
         } else {
-            tracing::warn!("Attempted to close non-existent document: {}", uri);
+            tracing::warn!("Attempted to close non-existent document: {:?}", uri);
         }
     }
-    
+
     Ok(())
 }
