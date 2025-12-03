@@ -8,7 +8,7 @@
 use async_lsp::ResponseError;
 use async_lsp::lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    TextDocumentContentChangeEvent,
+    TextDocumentContentChangeEvent, Position,
 };
 
 use crate::server::types::{Document, LspServerState};
@@ -82,7 +82,7 @@ pub async fn handle_did_change(
     } else {
         tracing::warn!("Attempted to change non-existent document: {:?}", uri);
         return Err(ResponseError::new(
-            async_lsp::ErrorCode::InvalidParams,
+            async_lsp::ErrorCode::InvalidRequest,
             format!("Document not found: {:?}", uri),
         ));
     }
@@ -119,10 +119,10 @@ fn apply_text_change(
 }
 
 /// Converts LSP position to rope index
-fn lsp_pos_to_rope_idx(content: &ropey::Rope, pos: lsp_types::Position) -> usize {
+fn lsp_pos_to_rope_idx(content: &ropey::Rope, pos: async_lsp::lsp_types::Position) -> usize {
     let line_idx = pos.line as usize;
     let col_idx = pos.character as usize;
-    
+
     // Get the line
     if line_idx < content.len_lines() {
         let line = content.line(line_idx);
