@@ -3,10 +3,10 @@
 //! This module handles PHP document parsing using tree-sitter-php,
 //! creating Abstract Syntax Trees (ASTs) for further language features.
 
-use tree_sitter::{Language, Parser, Tree};
-use lsp_types::Url;
+use tree_sitter::{Parser, Tree};
+use url::Url;
 
-use crate::server::types::{Document, LspServerState};
+use crate::server::types::LspServerState;
 
 /// Wrapper for tree-sitter's Tree to make it more manageable
 pub struct AstWrapper {
@@ -17,9 +17,8 @@ pub struct AstWrapper {
 /// Parse a PHP document and return an AST
 pub fn parse_php_document(content: &str, version: i32) -> Result<AstWrapper, Box<dyn std::error::Error>> {
     let mut parser = Parser::new();
-    let php_language = tree_sitter_php::language();
     parser
-        .set_language(php_language)
+        .set_language(tree_sitter_php::language())
         .map_err(|e| format!("Error setting PHP language: {}", e))?;
 
     let tree = parser

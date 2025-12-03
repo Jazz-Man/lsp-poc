@@ -5,23 +5,33 @@
 //! and transport handling.
 
 pub mod errors;
+pub mod types;
+pub mod lifecycle;
+pub mod document_sync;
+pub mod parsing;
+pub mod transport;
+pub mod benchmarks;
 
-use async_lsp::LspService;
+use async_lsp::{LspService, ResponseError};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     InitializedParams, InitializeParams, InitializeResult,
 };
+use serde_json::Value;
 use tokio::sync::Mutex;
 
-use crate::server::types::{create_server_state, LspServerState};
-use crate::server::lifecycle;
-use crate::server::document_sync;
-use crate::server::parsing;
-use crate::server::transport;
+use crate::server::types::{LspServerState, create_server_state};
+use crate::server::lifecycle::{handle_initialize, handle_initialized, handle_shutdown, handle_exit};
+use crate::server::document_sync::{handle_did_open, handle_did_change, handle_did_close};
+use crate::server::parsing::parse_and_cache_document;
+use crate::server::transport::run_stdio_transport;
+
+// Import error types
+use crate::server::errors::{LspError, Result as LspResult};
 
 /// Main LSP server struct that implements the async-lsp handlers
 pub struct LspServer {
-    state: LspServerState,
+    pub state: LspServerState,
 }
 
 impl LspServer {
@@ -34,89 +44,94 @@ impl LspServer {
 
     /// Run the LSP server
     pub async fn run(&self) -> anyhow::Result<()> {
-        // Create the LSP service
-        let mut service = LspService::new(Mutex::new(self.clone()));
-
-        // Add handlers for LSP methods
-        service.add_method("initialize", Self::handle_initialize);
-        service.add_notification("initialized", Self::handle_initialized);
-        service.add_method("shutdown", Self::handle_shutdown);
-        service.add_notification("exit", Self::handle_exit);
-        service.add_notification("textDocument/didOpen", Self::handle_did_open);
-        service.add_notification("textDocument/didChange", Self::handle_did_change);
-        service.add_notification("textDocument/didClose", Self::handle_did_close);
+        // Create the LSP service with proper handler methods
+        let service = LspService::new(|client| {
+            Self {
+                state: create_server_state(),
+            }
+        });
 
         // Run the server with stdio transport
-        transport::run_stdio_transport(service).await?;
+        run_stdio_transport(service).await?;
 
         Ok(())
     }
 }
 
-/// Handler implementations for the LSP server
-#[async_lsp::async_trait]
-impl async_lsp::LspHandler for LspServer {
-    /// Handle the initialize request
-    #[allow(clippy::unused_async)]
+impl async_lsp::Server for LspServer {
     async fn initialize(
         &self,
         params: InitializeParams,
     ) -> async_lsp::Result<InitializeResult> {
-        lifecycle::handle_initialize(&self.state, params).await
+        handle_initialize(&self.state, params).await
+            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
     }
 
-    /// Handle the initialized notification
-    #[allow(clippy::unused_async)]
-    async fn initialized(&self, params: InitializedParams) -> async_lsp::Result<()> {
-        lifecycle::handle_initialized(&self.state, params).await
+    async fn initialized(
+        &self,
+        params: InitializedParams,
+    ) -> async_lsp::Result<()> {
+        handle_initialized(&self.state, params).await
+            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
     }
 
-    /// Handle the shutdown request
-    #[allow(clippy::unused_async)]
-    async fn shutdown(&self) -> async_lsp::Result<()> {
-        lifecycle::handle_shutdown(&self.state).await?;
-        Ok(())
+    async fn shutdown(
+        &self,
+    ) -> async_lsp::Result<Value> {
+        handle_shutdown(&self.state).await
+            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
     }
 
-    /// Handle the exit notification
-    #[allow(clippy::unused_async)]
-    async fn exit(&self) -> async_lsp::Result<()> {
-        lifecycle::handle_exit(&self.state).await?;
-        Ok(())
+    async fn exit(
+        &self,
+    ) -> async_lsp::Result<()> {
+        handle_exit(&self.state).await
+            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
     }
 
-    /// Handle the textDocument/didOpen notification
-    #[allow(clippy::unused_async)]
-    async fn did_open(&self, params: DidOpenTextDocumentParams) -> async_lsp::Result<()> {
-        document_sync::handle_did_open(&self.state, params).await?;
+    async fn did_open(
+        &self,
+        params: DidOpenTextDocumentParams,
+    ) -> async_lsp::Result<()> {
+        handle_did_open(&self.state, params).await
+            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))?;
 
         // After opening, we should parse the document
-        let _ = parsing::parse_and_cache_document(&self.state, &params.text_document.uri).await;
+        let _ = parse_and_cache_document(&self.state, &params.text_document.uri).await;
 
         Ok(())
     }
 
-    /// Handle the textDocument/didChange notification
-    #[allow(clippy::unused_async)]
-    async fn did_change(&self, params: DidChangeTextDocumentParams) -> async_lsp::Result<()> {
-        document_sync::handle_did_change(&self.state, params).await?;
+    async fn did_change(
+        &self,
+        params: DidChangeTextDocumentParams,
+    ) -> async_lsp::Result<()> {
+        handle_did_change(&self.state, params).await
+            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))?;
 
         // After changes, we should reparse the document
         let uri = &params.text_document.uri;
-        let _ = parsing::parse_and_cache_document(&self.state, uri).await;
+        let _ = parse_and_cache_document(&self.state, uri).await;
 
         Ok(())
     }
 
-    /// Handle the textDocument/didClose notification
-    #[allow(clippy::unused_async)]
-    async fn did_close(&self, params: DidCloseTextDocumentParams) -> async_lsp::Result<()> {
-        document_sync::handle_did_close(&self.state, params).await
+    async fn did_close(
+        &self,
+        params: DidCloseTextDocumentParams,
+    ) -> async_lsp::Result<()> {
+        handle_did_close(&self.state, params).await
+            .map_err(|e| ResponseError::new(async_lsp::ErrorCode::UnknownErrorCode, e.to_string()))
     }
 }
 
 /// Run the LSP server
 pub async fn run() -> anyhow::Result<()> {
     let server = LspServer::new();
-    server.run().await
+    let service = LspService::build(server, |client| {
+        // This closure would define the server instance, but isn't needed with our approach
+    })
+    .finish();
+
+    run_stdio_transport(service).await
 }

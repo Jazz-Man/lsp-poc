@@ -2,15 +2,14 @@
 //! 
 //! This module handles the core LSP lifecycle requests: initialize, initialized, shutdown, and exit.
 
-use async_lsp::{ErrorCode, HandlerError, ResponseError};
+use async_lsp::{ResponseError};
 use lsp_types::{
-    InitializeParams, InitializeResult, InitializedParams, ServerInfo, 
+    InitializeParams, InitializeResult, InitializedParams, ServerInfo,
     TextDocumentSyncCapability, TextDocumentSyncKind, ServerCapabilities,
 };
 use serde_json::Value;
-use std::collections::HashMap;
 
-use crate::server::types::{LspServer, LspServerState};
+use crate::server::types::LspServerState;
 
 /// Handles the `initialize` request from the LSP client
 pub async fn handle_initialize(
