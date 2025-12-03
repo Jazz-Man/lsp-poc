@@ -15,21 +15,44 @@ pub struct AstWrapper {
 }
 
 /// Parse a PHP document and return an AST
-pub fn parse_php_document(content: &str) -> Result<AstWrapper, Box<dyn std::error::Error>> {
+pub fn parse_php_document(content: &str, version: i32) -> Result<AstWrapper, Box<dyn std::error::Error>> {
     let mut parser = Parser::new();
     let php_language = tree_sitter_php::language();
     parser
         .set_language(php_language)
         .map_err(|e| format!("Error setting PHP language: {}", e))?;
-    
+
     let tree = parser
         .parse(content, None)
         .ok_or("Parsing failed")?;
-    
+
+    // Check for syntax errors in the tree
+    let has_errors = has_syntax_errors(tree.root_node());
+
+    if has_errors {
+        tracing::warn!("Document contains syntax errors, but partial AST generated");
+    }
+
     Ok(AstWrapper {
         tree,
-        version: 0, // This would be set based on document version
+        version,
     })
+}
+
+/// Check if the AST contains syntax errors
+fn has_syntax_errors(node: tree_sitter::Node) -> bool {
+    if node.is_error() || node.is_missing() {
+        return true;
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if has_syntax_errors(child) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Parse a document in the server state and cache the resulting AST
@@ -37,30 +60,40 @@ pub async fn parse_and_cache_document(
     state: &LspServerState,
     uri: &Url,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let start_time = std::time::Instant::now();
     tracing::info!("Parsing document: {}", uri);
-    
+
     // Get the document from state
     let mut server_data = state.write().await;
     if let Some(doc) = server_data.documents.get_mut(uri) {
         let content_str = doc.content.to_string();
-        
+        let version = doc.version;
+        let content_len = content_str.len();
+
         // Parse the document
-        match parse_php_document(&content_str) {
+        match parse_php_document(&content_str, version) {
             Ok(ast_wrapper) => {
                 // Update the document with the new AST
                 doc.ast = Some(ast_wrapper);
-                tracing::info!("Successfully parsed and cached AST for: {}", uri);
+
+                let duration = start_time.elapsed();
+                tracing::info!("Successfully parsed and cached AST for: {} ({} chars in {:?})", uri, content_len, duration);
+
+                // Performance metric: Log parsing time
+                if content_len > 10000 && duration.as_millis() > 100 {
+                    tracing::warn!("Parsing of large document ({} chars) took longer than expected: {:?}", content_len, duration);
+                }
             }
             Err(e) => {
                 tracing::error!("Error parsing document {}: {}", uri, e);
-                // Even if parsing fails, we might want to store partial results
-                // For now, we'll just log the error
+                // Even if parsing fails completely, continue processing
+                // The document will be stored without an AST
             }
         }
     } else {
         tracing::warn!("Document not found in state: {}", uri);
     }
-    
+
     Ok(())
 }
 
