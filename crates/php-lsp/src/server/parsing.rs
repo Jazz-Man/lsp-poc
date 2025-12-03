@@ -95,8 +95,7 @@ pub async fn get_or_parse_document_ast(
     uri: &async_lsp::lsp_types::Url,
 ) -> Option<AstWrapper> {
     // First check if we already have a parsed AST that's up to date
-    // We need to get what we need and drop the lock immediately
-    let (should_parse, exists) = {
+    let (needs_parse, doc_exists) = {
         let server_data = state.read().await;
         if let Some(doc) = server_data.documents.get(uri) {
             let needs_parse = if let Some(ref ast) = doc.ast {
@@ -106,19 +105,21 @@ pub async fn get_or_parse_document_ast(
                 // No AST exists for this document
                 true
             };
-            (needs_parse, true)
+
+            (needs_parse, true) // Document exists
         } else {
-            // Document doesn't exist in the state
-            (false, false)
+            (false, false) // Document doesn't exist
         }
     }; // server_data is dropped here
 
-    // If AST doesn't exist or is outdated, parse the document
-    if should_parse {
-        let _ = parse_and_cache_document(state, uri).await;
-    } else if !exists {
-        // If the document doesn't even exist, return early
+    // If document doesn't exist, return early
+    if !doc_exists {
         return None;
+    }
+
+    // If AST is outdated, parse the document
+    if needs_parse {
+        let _ = parse_and_cache_document(state, uri).await;
     }
 
     // Now get the AST regardless (either it was already there or we just parsed it)
