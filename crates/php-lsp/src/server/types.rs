@@ -27,7 +27,7 @@ pub struct AstWrapper {
 }
 
 /// Represents the overall state of the LSP server
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LspServerStateData {
     pub documents: DashMap<async_lsp::lsp_types::Url, Document>,
     pub is_initialized: bool,
