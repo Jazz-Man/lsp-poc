@@ -9,6 +9,7 @@ use php_lsp::server::types::create_server_state;
 use php_lsp::server::{lifecycle, document_sync, parsing};
 
 #[tokio::test]
+#[allow(deprecated)]
 async fn test_full_lsp_workflow() {
     // Create server state
     let state = create_server_state();
@@ -16,7 +17,8 @@ async fn test_full_lsp_workflow() {
     // Test 1: Initialize the server
     let init_params = InitializeParams {
         process_id: None,
-        root_uri: None,
+        root_path: None,  // Deprecated but kept for backward compatibility
+        root_uri: None,   // Deprecated but kept for backward compatibility
         initialization_options: None,
         capabilities: ClientCapabilities::default(),
         trace: None,
@@ -24,7 +26,6 @@ async fn test_full_lsp_workflow() {
         client_info: None,
         locale: None,
         work_done_progress_params: Default::default(),
-        client_capabilities: None,
     };
 
     let init_result = lifecycle::handle_initialize(&state, init_params).await;
