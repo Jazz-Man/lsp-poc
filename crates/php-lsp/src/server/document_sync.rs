@@ -40,7 +40,7 @@ pub async fn handle_did_open(
 
     // Store the document in the server state
     {
-        let mut server_data = state.write().await;
+        let server_data = state.write().await;
 
         // Check if we're approaching the document limit
         if server_data.documents.len() >= 1000 {
@@ -66,7 +66,7 @@ pub async fn handle_did_change(
     let version = params.text_document.version;
 
     // Get the current document
-    let mut server_data = state.write().await;
+    let server_data = state.write().await;
     if let Some(mut doc) = server_data.documents.get_mut(&uri) {
         // Apply each change incrementally
         for change in changes {
@@ -161,7 +161,7 @@ pub async fn handle_did_close(
 
     // Remove the document from the server state
     {
-        let mut server_data = state.write().await;
+        let server_data = state.write().await;
         if server_data.documents.remove(&uri).is_some() {
             tracing::info!("Document closed successfully: {:?}", uri);
         } else {

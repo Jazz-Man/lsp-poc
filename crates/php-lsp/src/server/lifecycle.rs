@@ -14,7 +14,7 @@ use crate::server::types::LspServerState;
 /// Handles the `initialize` request from the LSP client
 pub async fn handle_initialize(
     state: &LspServerState,
-    params: InitializeParams,
+    _params: InitializeParams,
 ) -> Result<InitializeResult, ResponseError> {
     let start_time = std::time::Instant::now();
     tracing::info!("Processing initialize request");

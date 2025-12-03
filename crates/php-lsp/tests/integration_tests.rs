@@ -1,5 +1,3 @@
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use lsp_types::{
     DidOpenTextDocumentParams, TextDocumentItem, InitializeParams, ClientCapabilities,
     InitializedParams, DidChangeTextDocumentParams, VersionedTextDocumentIdentifier,
@@ -7,7 +5,7 @@ use lsp_types::{
 };
 use url::Url;
 
-use php_lsp::server::types::{create_server_state, LspServerState};
+use php_lsp::server::types::create_server_state;
 use php_lsp::server::{lifecycle, document_sync, parsing};
 
 #[tokio::test]

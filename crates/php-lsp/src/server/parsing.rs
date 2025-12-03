@@ -56,7 +56,7 @@ pub async fn parse_and_cache_document(
     tracing::info!("Parsing document: {:?}", uri);
 
     // Get the document from state
-    let mut server_data = state.write().await;
+    let server_data = state.write().await;
     if let Some(mut doc) = server_data.documents.get_mut(uri) {
         let content_str = doc.content.to_string();
         let version = doc.version;
@@ -98,7 +98,7 @@ pub async fn get_or_parse_document_ast(
     // Get a clone of the document to avoid borrowing issues
     let doc_clone = {
         let server_data = state.read().await;
-        server_data.documents.get(uri).map(|doc| (doc.value().clone()))
+        server_data.documents.get(uri).map(|doc| doc.value().clone())
     }; // server_data is dropped here
 
     // If document doesn't exist, return early
