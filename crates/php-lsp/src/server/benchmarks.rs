@@ -48,13 +48,14 @@ pub async fn benchmark_document_operations(state: &LspServerState) {
 /// Benchmark server initialization performance
 pub async fn benchmark_initialization() {
     let start_time = Instant::now();
-    
-    // Create a new server instance
-    let server = crate::server::LspServer::new();
-    
+
+    // Create a new server instance - This is a simplified benchmark that doesn't test full initialization
+    // as it would require a client socket for the actual LanguageServer implementation
+    let _state = crate::server::types::create_server_state();
+
     let init_duration = start_time.elapsed();
     tracing::info!("Server initialization benchmark: {:?}", init_duration);
-    
+
     // Verify initialization was fast enough
     if init_duration.as_millis() > 5000 {
         tracing::warn!("Server initialization took longer than 5 seconds: {:?}", init_duration);
