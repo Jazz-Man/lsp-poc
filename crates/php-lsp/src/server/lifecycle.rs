@@ -17,14 +17,15 @@ pub async fn handle_initialize(
     state: &LspServerState,
     params: InitializeParams,
 ) -> Result<InitializeResult, ResponseError> {
+    let start_time = std::time::Instant::now();
     tracing::info!("Processing initialize request");
-    
+
     // Update server state to indicate initialization is in progress
     {
         let mut server_data = state.write().await;
         server_data.is_initializing = true;
     }
-    
+
     // Define the server capabilities
     let capabilities = ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -59,7 +60,16 @@ pub async fn handle_initialize(
         server_data.is_initializing = false;
     }
 
-    tracing::info!("Initialize request completed successfully");
+    let duration = start_time.elapsed();
+    tracing::info!("Initialize request completed successfully in {:?}", duration);
+
+    // Log performance metric for initialization time
+    if duration.as_secs() >= 5 {
+        tracing::warn!("Initialization took longer than 5 seconds: {:?}", duration);
+    } else {
+        tracing::info!("Initialization completed within performance target: {:?}", duration);
+    }
+
     Ok(result)
 }
 

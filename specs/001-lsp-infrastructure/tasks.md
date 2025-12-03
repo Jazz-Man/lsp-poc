@@ -42,14 +42,14 @@ As a Zed user, I want the PHP LSP to properly initialize and shutdown so that my
 
 **Independent Test**: The LSP server can be started, responds to initialization requests with its capabilities, and shuts down cleanly when requested.
 
-- [ ] T015 [US1] Implement initialize request handler with required capabilities (FR-001)
-- [ ] T016 [US1] Add server capabilities configuration (textDocumentSync, hoverProvider, etc.)
-- [ ] T017 [US1] Implement initialized notification handler (FR-002)
-- [ ] T018 [US1] Implement shutdown request handler (FR-003)
-- [ ] T019 [US1] Implement exit notification handler (FR-004)
-- [ ] T020 [US1] Add server state flags for initialization and shutdown tracking
-- [ ] T021 [US1] Add server initialization performance metrics (SC-001)
-- [ ] T022 [US1] Test LSP lifecycle with mock client
+- [X] T015 [US1] Implement initialize request handler with required capabilities (FR-001)
+- [X] T016 [US1] Add server capabilities configuration (textDocumentSync, hoverProvider, etc.)
+- [X] T017 [US1] Implement initialized notification handler (FR-002)
+- [X] T018 [US1] Implement shutdown request handler (FR-003)
+- [X] T019 [US1] Implement exit notification handler (FR-004)
+- [X] T020 [US1] Add server state flags for initialization and shutdown tracking
+- [X] T021 [US1] Add server initialization performance metrics (SC-001)
+- [X] T022 [US1] Test LSP lifecycle with mock client
 
 ## Phase 4 - User Story 2: Document Synchronization (Priority: P2)
 
