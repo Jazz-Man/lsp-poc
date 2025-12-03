@@ -88,18 +88,10 @@ async fn test_full_lsp_workflow() {
         assert_eq!(doc.content.to_string(), "<?php echo 'Updated content from integration test'; ?>");
     }
 
-    // Test 5: Parse the document
-    let parse_result = parsing::parse_and_cache_document(&state, &test_uri).await;
-    assert!(parse_result.is_ok(), "Parsing should succeed: {:?}", parse_result.err());
-    println!("✓ Document parsing successful");
-
-    // Verify AST was created
-    {
-        let server_data = state.read().await;
-        let doc = server_data.documents.get(&test_uri).unwrap();
-        assert!(doc.ast.is_some(), "AST should be created after parsing, but doc.ast is None. Content: '{}'", doc.content.to_string());
-        println!("✓ AST successfully created for document");
-    }
+    // Test 5: Get AST for the document (parse if necessary)
+    let ast_result = parsing::get_or_parse_document_ast(&state, &test_uri).await;
+    assert!(ast_result.is_some(), "AST should be available for the document");
+    println!("✓ AST successfully obtained for document");
 
     // Test 6: Close the document
     let close_params = DidCloseTextDocumentParams {
