@@ -3,18 +3,17 @@
 //! This module contains the core data types used throughout the LSP server.
 
 use dashmap::DashMap;
-use lsp_types::{Uri, Position, Range};
+use async_lsp::lsp_types::{Uri, Position, Range};
 use ropey::Rope;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tree_sitter::Tree;
-use url::Url;
 
 /// Represents a PHP document being tracked by the LSP
 #[derive(Debug, Clone)]
 pub struct Document {
-    pub uri: Url,  // Using url::Url
+    pub uri: Uri,  // Using async-lsp's Uri type
     pub version: i32,
     pub content: Rope,
     pub ast: Option<AstWrapper>,
@@ -30,7 +29,7 @@ pub struct AstWrapper {
 /// Represents the overall state of the LSP server
 #[derive(Debug)]
 pub struct LspServerStateData {
-    pub documents: DashMap<Url, Document>,
+    pub documents: DashMap<Uri, Document>,
     pub is_initialized: bool,
     pub is_initializing: bool,
     pub is_shutting_down: bool,
