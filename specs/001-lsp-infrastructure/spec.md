@@ -85,9 +85,9 @@ As a Zed extension, I want the LSP to communicate via stdio so that it integrate
 
 ### Edge Cases
 
-- What happens when the LSP receives malformed JSON-RPC messages?
-- How does the system handle documents with very large file sizes?
-- What happens when the LSP encounters PHP code with severe syntax errors?
+- **Malformed JSON-RPC**: When the LSP receives malformed JSON-RPC messages, it MUST log the error with ERROR level and continue operation without crashing. The system SHOULD return appropriate error responses to the client when possible.
+- **Large file handling**: When handling documents exceeding 10,000 lines, the system MUST implement memory-efficient processing, provide user feedback on parsing status, and enforce configurable memory limits to prevent resource exhaustion.
+- **Severe syntax errors**: When the LSP encounters PHP code with severe syntax errors, it MUST generate a partial AST and continue providing available language features. The system SHOULD return partial results with error notifications when possible, with graceful degradation rather than complete failure.
 
 ## Requirements *(mandatory)*
 
@@ -114,6 +114,8 @@ As a Zed extension, I want the LSP to communicate via stdio so that it integrate
 - **FR-014**: System MUST log events using structured tracing instead of basic print statements.
 - **FR-015**: System MUST support PHP 7.4 and above, with focus on PHP 8.x features.
 - **FR-016**: System MUST return partial results with error notifications when possible, with graceful degradation.
+- **FR-017**: System MUST provide performance benchmarks for key metrics: initialization time, document sync operations, parsing speed, and memory usage per document count.
+- **FR-018**: System MUST output structured logs in JSON format using the tracing crate with log levels (INFO, DEBUG, ERROR, WARN) and include performance metrics including request processing time, memory usage, and document parsing duration.
 
 ### Key Entities *(include if feature involves data)*
 
