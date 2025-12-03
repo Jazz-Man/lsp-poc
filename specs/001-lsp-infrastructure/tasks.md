@@ -16,25 +16,25 @@
 
 Setup tasks needed before implementation can begin.
 
-- [ ] T001 Create project workspace with crates/php-lsp/ and Cargo.toml
-- [ ] T002 Add dependencies to Cargo.toml: async-lsp 0.2.2, tokio runtime, tree-sitter-php 0.24.2, ropey, lsp-types 0.97, tracing, thiserror/anyhow
-- [ ] T003 Create initial project structure per plan: src/main.rs, src/lib.rs, src/server/ directory
-- [ ] T004 Create zed-php-lsp crate with extension.toml and WASM configuration
-- [ ] T005 [P] Create server module files: lifecycle.rs, document_sync.rs, parsing.rs, transport.rs, types.rs
+- [X] T001 Create project workspace with crates/php-lsp/ and Cargo.toml
+- [X] T002 Add dependencies to Cargo.toml: async-lsp 0.2.2, tokio runtime, tree-sitter-php 0.24.2, ropey, lsp-types 0.97, tracing, thiserror/anyhow
+- [X] T003 Create initial project structure per plan: src/main.rs, src/lib.rs, src/server/ directory
+- [X] T004 Create zed-php-lsp crate with extension.toml and WASM configuration
+- [X] T005 [P] Create server module files: lifecycle.rs, document_sync.rs, parsing.rs, transport.rs, types.rs
 
 ## Phase 2 - Foundational Implementation
 
 Foundational tasks that block all user stories - must complete before any user story implementation.
 
-- [ ] T006 Define basic server state structure (DashMap for documents, capabilities, initialization flags)
-- [ ] T007 Implement command-line argument parsing for `--stdio` flag
-- [ ] T008 Set up tracing/logging infrastructure per constitution requirements
-- [ ] T009 Create error types with thiserror crate per constitution requirements
-- [ ] T010 Define core data types per data model: Document, AST, TransportMessage
-- [ ] T011 Create AST wrapper structure with tree-sitter integration
-- [ ] T012 Implement Document structure with ropey integration
-- [ ] T013 Set up stdio transport infrastructure
-- [ ] T014 Implement basic async-lsp server setup with placeholder handlers
+- [X] T006 Define basic server state structure (DashMap for documents, capabilities, initialization flags)
+- [X] T007 Implement command-line argument parsing for `--stdio` flag
+- [X] T008 Set up tracing/logging infrastructure per constitution requirements
+- [X] T009 Create error types with thiserror crate per constitution requirements
+- [X] T010 Define core data types per data model: Document, AST, TransportMessage
+- [X] T011 Create AST wrapper structure with tree-sitter integration
+- [X] T012 Implement Document structure with ropey integration
+- [X] T013 Set up stdio transport infrastructure
+- [X] T014 Implement basic async-lsp server setup with placeholder handlers
 
 ## Phase 3 - User Story 1: LSP Lifecycle (Priority: P1)
 

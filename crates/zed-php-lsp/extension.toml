@@ -1,10 +1,10 @@
-id = "php-lsp"
-name = "PHP LSP (Custom)"
+name = "php-lsp"
 version = "0.1.0"
 schema_version = 1
-authors = ["Your Name <you@example.com>"]
-description = "Custom PHP language server with WordPress hooks support"
+description = "PHP Language Server Protocol support for Zed"
+authors = ["Vasil Sokolik"]
 
-[language_servers.php-lsp]
-name = "PHP LSP"
-languages = ["PHP"]
+[language-server]
+name = "php-lsp"
+command = "./php-lsp"
+args = ["--stdio"]
