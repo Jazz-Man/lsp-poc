@@ -3,9 +3,8 @@
 //! This module contains the core data types used throughout the LSP server.
 
 use dashmap::DashMap;
-use async_lsp::lsp_types::{Url, Position, Range};
+use async_lsp::lsp_types::Url;
 use ropey::Rope;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tree_sitter::Tree;
