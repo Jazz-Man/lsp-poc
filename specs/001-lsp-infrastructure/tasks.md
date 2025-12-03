@@ -57,14 +57,14 @@ As a developer, I want my PHP files to be tracked by the LSP so that I get real-
 
 **Independent Test**: The LSP can open, track changes to, and close PHP documents correctly, maintaining internal state that reflects the current content.
 
-- [ ] T023 [US2] Implement textDocument/didOpen notification handler (FR-005)
-- [ ] T024 [US2] Implement document storage in DashMap with URI as key
-- [ ] T025 [US2] Implement textDocument/didChange notification handler with incremental sync (FR-006)
-- [ ] T026 [US2] Implement textDocument/didClose notification handler (FR-007)
-- [ ] T027 [US2] Add document synchronization performance tracking (SC-002)
-- [ ] T028 [US2] Implement document validation (URI, version, UTF-8 content checks)
-- [ ] T029 [US2] Add memory usage monitoring for document storage (SC-004)
-- [ ] T030 [US2] Test document synchronization with mock client
+- [X] T023 [US2] Implement textDocument/didOpen notification handler (FR-005)
+- [X] T024 [US2] Implement document storage in DashMap with URI as key
+- [X] T025 [US2] Implement textDocument/didChange notification handler with incremental sync (FR-006)
+- [X] T026 [US2] Implement textDocument/didClose notification handler (FR-007)
+- [X] T027 [US2] Add document synchronization performance tracking (SC-002)
+- [X] T028 [US2] Implement document validation (URI, version, UTF-8 content checks)
+- [X] T029 [US2] Add memory usage monitoring for document storage (SC-004)
+- [X] T030 [US2] Test document synchronization with mock client
 
 ## Phase 5 - User Story 3: PHP Parsing (Priority: P3)
 
