@@ -18,16 +18,14 @@ use lsp_types::{
     InitializedParams, InitializeParams, InitializeResult,
 };
 use serde_json::Value;
-use tokio::sync::Mutex;
 
 use crate::server::types::{LspServerState, create_server_state};
 use crate::server::lifecycle::{handle_initialize, handle_initialized, handle_shutdown, handle_exit};
 use crate::server::document_sync::{handle_did_open, handle_did_change, handle_did_close};
 use crate::server::parsing::parse_and_cache_document;
 use crate::server::transport::run_stdio_transport;
-
-// Import error types
-use crate::server::errors::{LspError, Result as LspResult};
+use std::future::Future;
+use std::pin::Pin;
 
 /// Main LSP server struct that implements the async-lsp handlers
 pub struct LspServer {
@@ -58,7 +56,19 @@ impl LspServer {
     }
 }
 
-impl async_lsp::Server for LspServer {
+#[async_lsp::async_trait]
+impl async_lsp::LspServiceFactory for LspServer {
+    type Service = Self;
+
+    async fn create_service(&self) -> Self::Service {
+        LspServer {
+            state: create_server_state(),
+        }
+    }
+}
+
+#[async_lsp::async_trait]
+impl async_lsp::LanguageServer for LspServer {
     async fn initialize(
         &self,
         params: InitializeParams,
@@ -128,10 +138,6 @@ impl async_lsp::Server for LspServer {
 /// Run the LSP server
 pub async fn run() -> anyhow::Result<()> {
     let server = LspServer::new();
-    let service = LspService::build(server, |client| {
-        // This closure would define the server instance, but isn't needed with our approach
-    })
-    .finish();
-
+    let service = LspService::new(server);
     run_stdio_transport(service).await
 }
