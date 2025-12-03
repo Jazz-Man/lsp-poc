@@ -60,24 +60,25 @@ pub async fn handle_did_change(
     params: DidChangeTextDocumentParams,
 ) -> Result<(), ResponseError> {
     tracing::info!("Processing textDocument/didChange for URI: {:?}", params.text_document.uri);
-    
+
     let uri = params.text_document.uri;
     let changes = params.content_changes;
-    
+    let version = params.text_document.version;
+
     // Get the current document
     let mut server_data = state.write().await;
-    if let Some(mut document) = server_data.documents.get_mut(&uri) {
+    if let Some(mut doc) = server_data.documents.get_mut(&uri) {
         // Apply each change incrementally
         for change in changes {
-            apply_text_change(document, change)?;
+            apply_text_change(&mut doc, change)?;
         }
-        
+
         // Update the document version
-        document.version = params.text_document.version;
-        
+        doc.version = version;
+
         // Clear the AST since the document content has changed
-        document.ast = None;
-        
+        doc.ast = None;
+
         tracing::info!("Document changes applied successfully: {:?}", uri);
     } else {
         tracing::warn!("Attempted to change non-existent document: {:?}", uri);
@@ -86,7 +87,7 @@ pub async fn handle_did_change(
             format!("Document not found: {:?}", uri),
         ));
     }
-    
+
     Ok(())
 }
 
