@@ -83,7 +83,7 @@ pub async fn handle_did_change(
     } else {
         tracing::warn!("Attempted to change non-existent document: {:?}", uri);
         return Err(ResponseError::new(
-            async_lsp::ErrorCode::InvalidRequest,
+            async_lsp::ErrorCode::INVALID_REQUEST,
             format!("Document not found: {:?}", uri),
         ));
     }
