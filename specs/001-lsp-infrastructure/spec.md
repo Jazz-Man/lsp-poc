@@ -112,6 +112,8 @@ As a Zed extension, I want the LSP to communicate via stdio so that it integrate
 - **FR-012**: System MUST handle parse errors gracefully by creating a partial AST representation.
 - **FR-013**: System MUST support PHP 8+ syntax including attributes, named arguments, and match expressions.
 - **FR-014**: System MUST log events using structured tracing instead of basic print statements.
+- **FR-015**: System MUST support PHP 7.4 and above, with focus on PHP 8.x features.
+- **FR-016**: System MUST return partial results with error notifications when possible, with graceful degradation.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -134,3 +136,14 @@ As a Zed extension, I want the LSP to communicate via stdio so that it integrate
 - **SC-003**: 95% of valid PHP 8+ documents parse successfully without errors.
 - **SC-004**: Memory usage remains under 200MB when tracking 50 documents simultaneously.
 - **SC-005**: LSP server can be launched with `--stdio` flag and maintains communication with the editor without crashes for 8+ hours of continuous use.
+- **SC-006**: LSP server can handle up to 1,000 documents simultaneously with minimal performance degradation.
+
+## Clarifications
+
+### Session 2025-12-03
+
+- Q: Security & authentication requirements → A: Authentication not required for local LSP communication - focus on communication security
+- Q: Performance and scalability targets → A: Support up to 1,000 documents simultaneously with minimal performance degradation
+- Q: Error handling strategy → A: Return partial results with error notifications when possible, with graceful degradation
+- Q: Supported PHP versions → A: Full support for PHP 7.4 and above, with focus on PHP 8.x features
+- Q: Logging and observability → A: Structured logs with tracing for performance metrics, error rates, and usage patterns
