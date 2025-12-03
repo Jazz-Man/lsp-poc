@@ -4,7 +4,6 @@
 //! creating Abstract Syntax Trees (ASTs) for further language features.
 
 use tree_sitter::Parser;
-use async_lsp::lsp_types::Url;
 
 use crate::server::types::{LspServerState, AstWrapper};
 
@@ -58,7 +57,7 @@ pub async fn parse_and_cache_document(
 
     // Get the document from state
     let mut server_data = state.write().await;
-    if let Some(doc) = server_data.documents.get_mut(uri) {
+    if let Some(mut doc) = server_data.documents.get_mut(uri) {
         let content_str = doc.content.to_string();
         let version = doc.version;
         let content_len = content_str.len();
@@ -96,25 +95,37 @@ pub async fn get_or_parse_document_ast(
     uri: &async_lsp::lsp_types::Url,
 ) -> Option<AstWrapper> {
     // First check if we already have a parsed AST that's up to date
-    {
+    // We need to get what we need and drop the lock immediately
+    let (should_parse, exists) = {
         let server_data = state.read().await;
         if let Some(doc) = server_data.documents.get(uri) {
-            if let Some(ref ast) = doc.ast {
-                if ast.version == doc.version {
-                    return Some(ast.clone());
-                }
-            }
+            let needs_parse = if let Some(ref ast) = doc.ast {
+                // Check if AST is up-to-date with document version
+                ast.version != doc.version
+            } else {
+                // No AST exists for this document
+                true
+            };
+            (needs_parse, true)
+        } else {
+            // Document doesn't exist in the state
+            (false, false)
         }
+    }; // server_data is dropped here
+
+    // If AST doesn't exist or is outdated, parse the document
+    if should_parse {
+        let _ = parse_and_cache_document(state, uri).await;
+    } else if !exists {
+        // If the document doesn't even exist, return early
+        return None;
     }
 
-    // If we don't have a current AST, parse the document
-    if parse_and_cache_document(state, uri).await.is_ok() {
-        // Try again to get the newly cached AST
-        let server_data = state.read().await;
-        if let Some(doc) = server_data.documents.get(uri) {
-            if let Some(ref ast) = doc.ast {
-                return Some(ast.clone());
-            }
+    // Now get the AST regardless (either it was already there or we just parsed it)
+    let server_data = state.read().await;
+    if let Some(doc) = server_data.documents.get(uri) {
+        if let Some(ref ast) = doc.ast {
+            return Some(ast.clone());
         }
     }
 
