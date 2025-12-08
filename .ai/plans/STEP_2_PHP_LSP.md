@@ -1,96 +1,72 @@
 # STEP 2: PHP LSP Implementation
 
 ## Critical Implementation Guidelines
-**DO NOT invent APIs. Use ONLY what exists in the documentation.**
 
-### Implementation Contract (CRITICAL!)
+### Documentation-First Development Approach
+**CRITICAL:** Always verify API existence before implementation. Use ONLY documented APIs from crate documentation. Never assume API behavior.
 
-For EACH task in this plan:
+Before writing any code:
+1. Generate/verify documentation: `.scripts/regen-docs.sh`
+2. Locate relevant crate documentation: `cat target/doc-md/index.md`
+3. Read specific API docs: `cat target/doc-md/{crate}/index.md`
+4. Confirm API signatures and usage patterns
 
-**Read docs** for the APIs you'll use
-**Write MAX 20-30 lines** of code
-**Run:** cargo check
-**If error → FIX IMMEDIATELY** (not "out of scope"!)
-**Run:** cargo check (must pass)
-**Run:** git add -A && git commit -m "task: description"
-**Only then → next task**
+### Incremental Development Protocol
+For EACH implementation task, follow this exact sequence:
 
-### ABSOLUTE RULES
+1. **RESEARCH:** Read documentation for APIs to be used
+2. **IMPLEMENT:** Write MAX 20-30 lines of focused code
+3. **VALIDATE:** Run `cargo check` - must pass with no errors
+4. **FIX:** If errors exist, resolve IMMEDIATELY (not later)
+5. **COMMIT:** Run `git add -A && git commit -m "task: description"`
+6. **PROCEED:** Only then continue to next task
 
-✗ NEVER write more than 30 lines without cargo check
-✗ NEVER proceed with compilation errors
-✗ NEVER invent APIs not in documentation
-✗ NEVER skip commits between tasks
-✗ NEVER say "errors exist but out of scope"
-✗ NEVER implement features not in the current plan
+### Absolute Development Constraints
 
-✓ ALWAYS read docs before writing code
-✓ ALWAYS cargo check after every change
-✓ ALWAYS fix errors immediately
-✓ ALWAYS commit working code
-✓ ALWAYS follow the task order from this plan
+✗ STOP if compilation fails - fix immediately
+✗ STOP if API doesn't exist in docs - research alternatives
+✗ STOP after 30 lines - validate before continuing
+✗ STOP if deviating from planned tasks - return to plan
+✗ STOP if errors occur - resolve before proceeding
 
-### Example Workflow
+✓ VERIFY documentation before each code section
+✓ RUN cargo check after every change
+✓ COMMIT working code regularly
+✓ FOLLOW plan task order precisely
+✓ IMPLEMENT ONE feature at a time
 
-# Task 1: Add PHP parser integration
-# 1. Read tree-sitter-php docs
-cat target/doc-md/tree_sitter/index.md
+### Development Workflow Example
 
-# 2. Write ~20 lines for parser integration
-# 3. Check
-cargo check
+# Task: Add PHP parser integration
+1. # Read tree-sitter-php documentation
+   cat target/doc-md/tree_sitter/index.md
+2. # Implement PHP parser (~20 lines)
+3. # Validate implementation
+   cargo check
+4. # Commit working code
+   git add -A && git commit -m "feat: add PHP parser integration"
 
-# 4. If OK, commit
-git add -A && git commit -m "feat: add PHP parser integration"
+### Error Resolution Protocol
 
-# Task 2: Add PHPDoc analyzer
-# Repeat process...
+When compilation errors occur:
 
-### Research API Before Implementation
+1. **IDENTIFY:** First error in `cargo check` output
+2. **RESEARCH:** Check relevant documentation in target/doc-md/
+3. **FIX:** Address ONLY the first error
+4. **VERIFY:** Run `cargo check` again
+5. **REPEAT:** Until compilation succeeds
+6. **COMMIT:** Run `git add -A && git commit -m "fix: {description}"`
 
-Before implementing, you must understand the available APIs.
+### Documentation Research Steps
 
-### Step 1: List available crates
-cat target/doc-md/index.md
-
-### Step 2: Read the main crate you'll use
-cat target/doc-md/{crate}/index.md
-
-### Step 3: Find specific types/functions
-grep -r "TypeName" target/doc-md/{crate}/
-
-### Step 4: Check crate info
-cargo info {crate}
-
-### Step 5: Look at examples in the crate repo
-
-### Fix Compilation Error
-
-There's a compilation error. Let me fix it properly.
-
-### Step 1: Understand the error
-cargo check 2>&1 | head -50
-
-### Step 2: Read relevant documentation
-The error mentions a specific type/function. Let me check the docs:
-```bash
-# Find the crate
-cat target/doc-md/index.md
-
-# Read the specific crate docs
-cat target/doc-md/{crate}/index.md
-```
-
-### Step 3: Fix ONE error at a time
-I will:
-1. Fix only the FIRST error
-2. Run cargo check
-3. If more errors, repeat
-
-### Step 4: Commit the fix
-git add -A && git commit -m "fix: {description of what was fixed}"
-
-DO NOT try to fix everything at once. One error at a time.
+1. # Update documentation
+   .scripts/regen-docs.sh
+2. # List available crates
+   cat target/doc-md/index.md
+3. # Research specific crate
+   cat target/doc-md/{crate}/index.md
+4. # Search for specific functionality
+   grep -r "Pattern" target/doc-md/{crate}/
 
 ## Overview
 Build a comprehensive PHP Language Server on top of the basic LSP framework created in STEP 1. This implementation should include all requested features including WordPress hook support, PHPDoc parsing, and composer integration.
