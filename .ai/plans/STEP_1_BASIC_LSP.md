@@ -1,0 +1,223 @@
+# STEP 1: Basic LSP Foundation
+
+## Critical Implementation Guidelines
+**DO NOT invent APIs. Use ONLY what exists in the documentation.**
+
+### Implementation Contract (CRITICAL!)
+
+For EACH task in this plan:
+
+**Read docs** for the APIs you'll use
+**Write MAX 20-30 lines** of code
+**Run:** cargo check
+**If error → FIX IMMEDIATELY** (not "out of scope"!)
+**Run:** cargo check (must pass)
+**Run:** git add -A && git commit -m "task: description"
+**Only then → next task**
+
+### ABSOLUTE RULES
+
+✗ NEVER write more than 30 lines without cargo check
+✗ NEVER proceed with compilation errors
+✗ NEVER invent APIs not in documentation
+✗ NEVER skip commits between tasks
+✗ NEVER say "errors exist but out of scope"
+✗ NEVER implement features not in the current plan
+
+✓ ALWAYS read docs before writing code
+✓ ALWAYS cargo check after every change
+✓ ALWAYS fix errors immediately
+✓ ALWAYS commit working code
+✓ ALWAYS follow the task order from this plan
+
+### Example Workflow
+
+# Task 1: Add Document struct
+# 1. Read ropey docs
+cat target/doc-md/ropey/index.md
+
+# 2. Write ~20 lines for Document struct
+# 3. Check
+cargo check
+
+# 4. If OK, commit
+git add -A && git commit -m "feat: add Document struct with Rope"
+
+# Task 2: Add DocumentStore
+# Repeat process...
+
+### Research API Before Implementation
+
+Before implementing, you must understand the available APIs.
+
+### Step 1: List available crates
+cat target/doc-md/index.md
+
+### Step 2: Read the main crate you'll use
+cat target/doc-md/{crate}/index.md
+
+### Step 3: Find specific types/functions
+grep -r "TypeName" target/doc-md/{crate}/
+
+### Step 4: Check crate info
+cargo info {crate}
+
+### Step 5: Look at examples in the crate repo
+
+### Fix Compilation Error
+
+There's a compilation error. Let me fix it properly.
+
+### Step 1: Understand the error
+cargo check 2>&1 | head -50
+
+### Step 2: Read relevant documentation
+The error mentions a specific type/function. Let me check the docs:
+```bash
+# Find the crate
+cat target/doc-md/index.md
+
+# Read the specific crate docs
+cat target/doc-md/{crate}/index.md
+```
+
+### Step 3: Fix ONE error at a time
+I will:
+1. Fix only the FIRST error
+2. Run cargo check
+3. If more errors, repeat
+
+### Step 4: Commit the fix
+git add -A && git commit -m "fix: {description of what was fixed}"
+
+DO NOT try to fix everything at once. One error at a time.
+
+## Overview
+Create a general-purpose LSP framework similar to async-language-server but with enhanced features and better abstractions for building language-specific LSPs. This framework should serve as the foundation for the PHP LSP and future language implementations.
+
+## Architecture Design
+
+### Core Components
+- **CoreLspService**: Main service trait similar to async-lsp's LanguageServer but with enhanced abstractions
+- **DocumentManager**: Enhanced document management with Ropey and tree-sitter support
+- **ConfigurationManager**: Support for language-specific configurations
+- **TransportLayer**: Support for stdio, TCP, and WebSocket transports
+- **EncodingHandler**: Automatic encoding negotiation (UTF-8, UTF-16, UTF-32)
+- **RequestProcessor**: Handle LSP requests with custom middleware system
+
+### Enhanced Features over async-language-server
+- Pluggable middleware system for request processing
+- Generic document type supporting multiple syntax trees
+- Improved error handling and recovery mechanisms
+- Better support for incremental changes
+- Built-in testing framework for LSP functionality
+- Enhanced diagnostics processing pipeline
+
+## Technology Stack
+- Rust 2021 edition
+- async-lsp 0.2.2 (or latest stable)
+- tower ecosystem for middleware
+- ropey for efficient text editing
+- tree-sitter for grammar parsing (optional feature)
+- tokio for async runtime
+- tracing for logging
+- dashmap for concurrent state management
+
+## Implementation Strategy
+
+### Phase 1: Core Service Layer
+1. Define CoreLspService trait with required methods
+   - All standard LSP methods (hover, completion, diagnostics, etc.)
+   - Configuration and initialization methods
+   - Support for custom extension methods
+2. Implement basic request routing and handling
+3. Set up project structure and basic Cargo.toml
+4. Add initial tests for core functionality
+
+### Phase 2: Document Management
+1. Implement DocumentManager for handling text documents
+   - Support for incremental updates
+   - Version tracking
+   - Text encoding handling
+2. Integrate ropey for efficient rope-based text storage
+3. Add support for document lifecycle events (open, change, save, close)
+4. Create Document trait that can be extended for language-specific features
+5. Implement tests for document management
+
+### Phase 3: Transport Layer & Encoding Handling
+1. Implement Transport trait supporting stdio and TCP
+2. Create EncodingHandler for automatic encoding negotiation
+   - Support for UTF-8, UTF-16, and UTF-32
+   - Position conversion utilities
+   - Range conversion utilities
+3. Integrate with async-lsp's transport mechanisms
+4. Add tests for encoding conversions
+
+### Phase 4: Middleware System
+1. Implement pluggable middleware system using tower concept
+2. Create built-in middleware:
+   - Logging middleware
+   - Error handling middleware
+   - Request throttling middleware
+   - Metrics collection middleware
+3. Allow custom middleware registration
+4. Add tests for middleware functionality
+
+### Phase 5: Tree-sitter Integration (Optional Feature)
+1. Add optional tree-sitter feature dependency
+2. Implement TreeDocument trait extending Document
+3. Provide utilities for tree-sitter node queries
+4. Add incremental tree-sitter tree updates
+5. Include tests for tree-sitter functionality
+
+### Phase 6: Configuration Management
+1. Implement ConfigurationManager for workspace settings
+2. Support for language-specific configurations
+3. Allow dynamic configuration updates
+4. Include configuration validation
+5. Add tests for configuration handling
+
+## Documentation and Testing
+
+### Using Documentation Generation
+Before implementing each feature:
+- Run `.scripts/regen-docs.sh` to update documentation
+- Read relevant crate docs: `target/doc-md/async_lsp/index.md`, `target/doc-md/tree_sitter/index.md`, `target/doc-md/lsp_types/index.md`, `target/doc-md/ropey/index.md`
+- Ensure implementation follows current API patterns
+
+### Testing Strategy
+- Unit tests for each component
+- Integration tests for request handling
+- End-to-end tests with real LSP clients
+- Performance benchmarks for document updates
+- Fuzzing for security-critical parsing functions
+
+## Security Considerations
+- Input validation for all LSP requests
+- Resource limits to prevent DoS attacks
+- Proper isolation of client connections
+- Secure handling of sensitive file paths
+- Sanitization of error messages that might contain sensitive data
+
+## Documentation Standards
+- Comprehensive inline documentation with examples
+- README with usage examples
+- API documentation for all public interfaces
+- Configuration guide
+- Performance tuning guide
+
+## Deliverables
+- BasicLsp crate with core LSP functionality
+- Document management system with ropey integration
+- Encoding handling utilities
+- Middleware system
+- Tree-sitter integration (optional feature)
+- Comprehensive test suite
+- Example implementations
+- Documentation
+
+## Next Steps Preparation
+- Prepare interfaces that will be easily extendable for PHP-specific functionality
+- Design hooks for language-specific analysis
+- Ensure clean separation between general LSP functionality and language-specific features
+- Plan for easy integration with Zed editor
