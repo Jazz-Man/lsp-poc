@@ -29,9 +29,16 @@ Create a comprehensive Zed extension for the PHP LSP:
 - Cross-platform support
 
 ## Development Approach
-- Use incremental development for each feature
+
+### Critical Implementation Guidelines
+**CRITICAL:** Always verify API existence before implementation. Use ONLY documented APIs from crate documentation or proven examples. Never assume API behavior.
+
+- Use incremental development: MAX 20-30 lines followed by `cargo check`
 - Leverage `.scripts/regen-docs.sh` to keep documentation up-to-date before implementing each feature
+- Study Deputy example implementation patterns for Zed integration
 - Follow the code style and quality standards from `.ai/code-stye-prompt.md`
+- Fix compilation errors immediately - never proceed with errors
+- Commit working code regularly with descriptive commit messages
 - Ensure comprehensive testing at each step
 - Maintain security best practices throughout development
 
