@@ -7,10 +7,11 @@
 .vscode/
 *.swp
 .claude/settings.json
-.qwen/settings.json
 .DS_Store
 *.log
 debug/
 release/
 
 !QWEN.md
+!.qwen/*
+.qwen/settings.json
