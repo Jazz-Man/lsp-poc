@@ -3,34 +3,40 @@
 This roadmap outlines the chronological implementation of the PHP LSP project across the three main steps, highlighting dependencies and integration points.
 
 ## Critical Implementation Guidelines for ALL Phases
-**DO NOT invent APIs. Use ONLY what exists in the documentation.**
 
-### Implementation Contract (CRITICAL!)
+### Documentation-First Development Approach
+**CRITICAL:** Always verify API existence before implementation. Use ONLY documented APIs from crate documentation or proven examples. Never assume API behavior.
 
-For EACH task in the entire project:
+Before writing any code:
+1. Generate/verify documentation: `.scripts/regen-docs.sh` (for Rust crates)
+2. Study Deputy example implementation patterns (for Zed integration)
+3. Locate relevant crate documentation: `cat target/doc-md/index.md`
+4. Read specific API docs: `cat target/doc-md/{crate}/index.md`
+5. Confirm API signatures and usage patterns
 
-**Read docs** for the APIs you'll use
-**Write MAX 20-30 lines** of code
-**Run:** cargo check
-**If error → FIX IMMEDIATELY** (not "out of scope"!)
-**Run:** cargo check (must pass)
-**Run:** git add -A && git commit -m "task: description"
-**Only then → next task**
+### Incremental Development Protocol
+For EACH implementation task in the entire project, follow this exact sequence:
 
-### ABSOLUTE RULES
+1. **RESEARCH:** Read documentation/examples for APIs to be used
+2. **IMPLEMENT:** Write MAX 20-30 lines of focused code
+3. **VALIDATE:** Run `cargo check` - must pass with no errors
+4. **FIX:** If errors exist, resolve IMMEDIATELY (not later)
+5. **COMMIT:** Run `git add -A && git commit -m "task: description"`
+6. **PROCEED:** Only then continue to next task
 
-✗ NEVER write more than 30 lines without cargo check
-✗ NEVER proceed with compilation errors
-✗ NEVER invent APIs not in documentation
-✗ NEVER skip commits between tasks
-✗ NEVER say "errors exist but out of scope"
-✗ NEVER implement features not in the current plan
+### Absolute Development Constraints
 
-✓ ALWAYS read docs before writing code
-✓ ALWAYS cargo check after every change
-✓ ALWAYS fix errors immediately
-✓ ALWAYS commit working code
-✓ ALWAYS follow the task order from the plans
+✗ STOP if compilation fails - fix immediately
+✗ STOP if API doesn't exist in docs/examples - research alternatives
+✗ STOP after 30 lines - validate before continuing
+✗ STOP if deviating from planned tasks - return to plan
+✗ STOP if errors occur - resolve before proceeding
+
+✓ VERIFY documentation before each code section
+✓ RUN cargo check after every change
+✓ COMMIT working code regularly
+✓ FOLLOW plan task order precisely
+✓ IMPLEMENT ONE feature at a time
 
 ## Phase 1: Basic LSP Foundation
 Timeline: Weeks 1-4
