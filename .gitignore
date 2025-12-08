@@ -12,3 +12,5 @@
 *.log
 debug/
 release/
+
+!QWEN.md
