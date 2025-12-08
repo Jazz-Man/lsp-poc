@@ -143,12 +143,6 @@ This custom LSP is not just a technical exercise - it's a strategic investment t
 
 ## Architecture & Design
 
-### Specification-Driven Development Approach
-- Use `spec-kit-plus` for defining and testing LSP capabilities
-- Define behavior specifications before implementation
-- Iterative development approach with specification refinement
-- Comprehensive testing of LSP protocol compliance
-
 ### Async Architecture
 - Leverage `async-lsp`'s async-native design for optimal performance
 - Handle multiple concurrent requests efficiently
@@ -230,23 +224,3 @@ This custom LSP is not just a technical exercise - it's a strategic investment t
 - Caching mechanisms
 - Advanced formatting support
 - Extensive framework support
-
-## Testing Approach
-
-### SDD Specification Testing
-- Use `spec-kit-plus` to define expected behavior
-- Test against real-world PHP code samples
-- Verify LSP protocol compliance
-
-### Feature Testing
-- Unit tests for individual components (Article III compliance)
-- Integration tests with real LSP clients (Article IX compliance)
-- Contract tests for API endpoints (Article IX compliance)
-- End-to-end tests with Zed editor
-
-## Performance Considerations
-
-- Efficient parsing and analysis using tree-sitter
-- Caching of parsed ASTs and analysis results
-- Incremental analysis for file changes
-- Asynchronous processing to maintain responsiveness
