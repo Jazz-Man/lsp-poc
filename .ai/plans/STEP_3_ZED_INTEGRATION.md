@@ -1,84 +1,70 @@
 # STEP 3: Zed Editor Integration
 
 ## Critical Implementation Guidelines
-**DO NOT invent APIs. Use ONLY what exists in the documentation.**
 
-### Implementation Contract (CRITICAL!)
+### Documentation-First Development Approach
+**CRITICAL:** Always verify API existence before implementation. Use ONLY documented APIs from crate documentation. Never assume API behavior.
 
-For EACH task in this plan:
+Before writing any code:
+1. Study Deputy example implementation patterns
+2. Locate Zed Extension API documentation and patterns
+3. Read zed_extension_api documentation: `cat target/doc-md/zed_extension_api/index.md` (if exists)
+4. Confirm API signatures and usage patterns
 
-**Read docs** for the APIs you'll use
-**Write MAX 20-30 lines** of code
-**Run:** cargo check
-**If error → FIX IMMEDIATELY** (not "out of scope"!)
-**Run:** cargo check (must pass)
-**Run:** git add -A && git commit -m "task: description"
-**Only then → next task**
+### Incremental Development Protocol
+For EACH implementation task, follow this exact sequence:
 
-### ABSOLUTE RULES
+1. **RESEARCH:** Review Deputy example and Zed Extension API patterns
+2. **IMPLEMENT:** Write MAX 20-30 lines of focused code
+3. **VALIDATE:** Run `cargo check` - must pass with no errors
+4. **FIX:** If errors exist, resolve IMMEDIATELY (not later)
+5. **COMMIT:** Run `git add -A && git commit -m "task: description"`
+6. **PROCEED:** Only then continue to next task
 
-✗ NEVER write more than 30 lines without cargo check
-✗ NEVER proceed with compilation errors
-✗ NEVER invent APIs not in documentation
-✗ NEVER skip commits between tasks
-✗ NEVER say "errors exist but out of scope"
-✗ NEVER implement features not in the current plan
+### Absolute Development Constraints
 
-✓ ALWAYS read docs before writing code
-✓ ALWAYS cargo check after every change
-✓ ALWAYS fix errors immediately
-✓ ALWAYS commit working code
-✓ ALWAYS follow the task order from this plan
+✗ STOP if compilation fails - fix immediately
+✗ STOP if API doesn't exist in examples - research alternatives
+✗ STOP after 30 lines - validate before continuing
+✗ STOP if deviating from planned tasks - return to plan
+✗ STOP if errors occur - resolve before proceeding
 
-### Example Workflow
+✓ VERIFY patterns in Deputy example before each code section
+✓ RUN cargo check after every change
+✓ COMMIT working code regularly
+✓ FOLLOW plan task order precisely
+✓ IMPLEMENT ONE feature at a time
 
-# Task 1: Add Zed extension structure
-# 1. Review Zed Extension API docs
-# (Zed doesn't have standard documentation, but check current patterns from Deputy example)
+### Development Workflow Example
 
-# 2. Write ~20 lines for basic extension structure
-# 3. Check
-cargo check
+# Task: Add Zed extension structure
+1. # Study Deputy extension implementation
+   # Review src/extension.rs pattern
+2. # Implement basic extension structure (~20 lines)
+3. # Validate implementation
+   cargo check
+4. # Commit working code
+   git add -A && git commit -m "feat: add basic Zed extension structure"
 
-# 4. If OK, commit
-git add -A && git commit -m "feat: add basic Zed extension structure"
+### Error Resolution Protocol
 
-# Task 2: Add binary manager
-# Repeat process...
+When compilation errors occur:
 
-### Research API Before Implementation
+1. **IDENTIFY:** First error in `cargo check` output
+2. **RESEARCH:** Check Deputy example implementation patterns
+3. **FIX:** Address ONLY the first error
+4. **VERIFY:** Run `cargo check` again
+5. **REPEAT:** Until compilation succeeds
+6. **COMMIT:** Run `git add -A && git commit -m "fix: {description}"`
 
-Before implementing, you must understand the available APIs.
+### Documentation Research Steps
 
-### Step 1: Review Zed Extension API documentation
-Check current patterns from Deputy example and official Zed extension documentation
-
-### Step 2: Understand zed_extension_api usage
-Examine patterns from existing extensions
-
-### Step 3: Find specific types/functions
-Look at actual examples from working extensions
-
-### Fix Compilation Error
-
-There's a compilation error. Let me fix it properly.
-
-### Step 1: Understand the error
-cargo check 2>&1 | head -50
-
-### Step 2: Read relevant documentation
-The error mentions a specific type/function. Let me check the extension API docs or examples.
-
-### Step 3: Fix ONE error at a time
-I will:
-1. Fix only the FIRST error
-2. Run cargo check
-3. If more errors, repeat
-
-### Step 4: Commit the fix
-git add -A && git commit -m "fix: {description of what was fixed}"
-
-DO NOT try to fix everything at once. One error at a time.
+1. # Study Deputy extension structure
+   cat /Users/vasilsokolik/www/php-lsp-qwen/tmp/deputy/editors/zed/src/extension.rs
+2. # Review Zed Extension API documentation
+   # Check zed_extension_api patterns
+3. # Identify relevant API usage patterns
+   grep -r "LanguageServer" /Users/vasilsokolik/www/php-lsp-qwen/tmp/deputy/editors/zed/src/
 
 ## Overview
 Create a comprehensive Zed extension for the PHP LSP implementation. This extension should handle automatic binary management, configuration, and provide a seamless user experience within the Zed editor.
