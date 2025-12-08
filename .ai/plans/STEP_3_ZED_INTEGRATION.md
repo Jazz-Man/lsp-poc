@@ -1,5 +1,85 @@
 # STEP 3: Zed Editor Integration
 
+## Critical Implementation Guidelines
+**DO NOT invent APIs. Use ONLY what exists in the documentation.**
+
+### Implementation Contract (CRITICAL!)
+
+For EACH task in this plan:
+
+**Read docs** for the APIs you'll use
+**Write MAX 20-30 lines** of code
+**Run:** cargo check
+**If error → FIX IMMEDIATELY** (not "out of scope"!)
+**Run:** cargo check (must pass)
+**Run:** git add -A && git commit -m "task: description"
+**Only then → next task**
+
+### ABSOLUTE RULES
+
+✗ NEVER write more than 30 lines without cargo check
+✗ NEVER proceed with compilation errors
+✗ NEVER invent APIs not in documentation
+✗ NEVER skip commits between tasks
+✗ NEVER say "errors exist but out of scope"
+✗ NEVER implement features not in the current plan
+
+✓ ALWAYS read docs before writing code
+✓ ALWAYS cargo check after every change
+✓ ALWAYS fix errors immediately
+✓ ALWAYS commit working code
+✓ ALWAYS follow the task order from this plan
+
+### Example Workflow
+
+# Task 1: Add Zed extension structure
+# 1. Review Zed Extension API docs
+# (Zed doesn't have standard documentation, but check current patterns from Deputy example)
+
+# 2. Write ~20 lines for basic extension structure
+# 3. Check
+cargo check
+
+# 4. If OK, commit
+git add -A && git commit -m "feat: add basic Zed extension structure"
+
+# Task 2: Add binary manager
+# Repeat process...
+
+### Research API Before Implementation
+
+Before implementing, you must understand the available APIs.
+
+### Step 1: Review Zed Extension API documentation
+Check current patterns from Deputy example and official Zed extension documentation
+
+### Step 2: Understand zed_extension_api usage
+Examine patterns from existing extensions
+
+### Step 3: Find specific types/functions
+Look at actual examples from working extensions
+
+### Fix Compilation Error
+
+There's a compilation error. Let me fix it properly.
+
+### Step 1: Understand the error
+cargo check 2>&1 | head -50
+
+### Step 2: Read relevant documentation
+The error mentions a specific type/function. Let me check the extension API docs or examples.
+
+### Step 3: Fix ONE error at a time
+I will:
+1. Fix only the FIRST error
+2. Run cargo check
+3. If more errors, repeat
+
+### Step 4: Commit the fix
+git add -A && git commit -m "fix: {description of what was fixed}"
+
+DO NOT try to fix everything at once. One error at a time.
+
 ## Overview
 Create a comprehensive Zed extension for the PHP LSP implementation. This extension should handle automatic binary management, configuration, and provide a seamless user experience within the Zed editor.
 
