@@ -39,6 +39,8 @@ Create a comprehensive Zed extension for the PHP LSP:
 - Follow the code style and quality standards from `.ai/code-stye-prompt.md`
 - Fix compilation errors immediately - never proceed with errors
 - Commit working code regularly with descriptive commit messages
+- Verify dependencies before adding: `cargo info {crate}` and `cargo info {crate} --features`
+- Check dependency tree impact: `cargo tree --prune={crate}`
 - Ensure comprehensive testing at each step
 - Maintain security best practices throughout development
 
