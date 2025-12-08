@@ -2,6 +2,36 @@
 
 This roadmap outlines the chronological implementation of the PHP LSP project across the three main steps, highlighting dependencies and integration points.
 
+## Critical Implementation Guidelines for ALL Phases
+**DO NOT invent APIs. Use ONLY what exists in the documentation.**
+
+### Implementation Contract (CRITICAL!)
+
+For EACH task in the entire project:
+
+**Read docs** for the APIs you'll use
+**Write MAX 20-30 lines** of code
+**Run:** cargo check
+**If error → FIX IMMEDIATELY** (not "out of scope"!)
+**Run:** cargo check (must pass)
+**Run:** git add -A && git commit -m "task: description"
+**Only then → next task**
+
+### ABSOLUTE RULES
+
+✗ NEVER write more than 30 lines without cargo check
+✗ NEVER proceed with compilation errors
+✗ NEVER invent APIs not in documentation
+✗ NEVER skip commits between tasks
+✗ NEVER say "errors exist but out of scope"
+✗ NEVER implement features not in the current plan
+
+✓ ALWAYS read docs before writing code
+✓ ALWAYS cargo check after every change
+✓ ALWAYS fix errors immediately
+✓ ALWAYS commit working code
+✓ ALWAYS follow the task order from the plans
+
 ## Phase 1: Basic LSP Foundation
 Timeline: Weeks 1-4
 
