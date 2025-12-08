@@ -37,6 +37,9 @@ For EACH implementation task in the entire project, follow this exact sequence:
 ✓ COMMIT working code regularly
 ✓ FOLLOW plan task order precisely
 ✓ IMPLEMENT ONE feature at a time
+✓ VERIFY dependencies before adding: `cargo info {crate}` and `cargo tree --prune={crate}`
+✓ ENABLE only required features to minimize dependencies
+✓ CHECK security with `cargo audit` (install if needed)
 
 ## Phase 1: Basic LSP Foundation
 Timeline: Weeks 1-4
