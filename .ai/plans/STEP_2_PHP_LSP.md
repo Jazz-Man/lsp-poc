@@ -1,5 +1,97 @@
 # STEP 2: PHP LSP Implementation
 
+## Critical Implementation Guidelines
+**DO NOT invent APIs. Use ONLY what exists in the documentation.**
+
+### Implementation Contract (CRITICAL!)
+
+For EACH task in this plan:
+
+**Read docs** for the APIs you'll use
+**Write MAX 20-30 lines** of code
+**Run:** cargo check
+**If error → FIX IMMEDIATELY** (not "out of scope"!)
+**Run:** cargo check (must pass)
+**Run:** git add -A && git commit -m "task: description"
+**Only then → next task**
+
+### ABSOLUTE RULES
+
+✗ NEVER write more than 30 lines without cargo check
+✗ NEVER proceed with compilation errors
+✗ NEVER invent APIs not in documentation
+✗ NEVER skip commits between tasks
+✗ NEVER say "errors exist but out of scope"
+✗ NEVER implement features not in the current plan
+
+✓ ALWAYS read docs before writing code
+✓ ALWAYS cargo check after every change
+✓ ALWAYS fix errors immediately
+✓ ALWAYS commit working code
+✓ ALWAYS follow the task order from this plan
+
+### Example Workflow
+
+# Task 1: Add PHP parser integration
+# 1. Read tree-sitter-php docs
+cat target/doc-md/tree_sitter/index.md
+
+# 2. Write ~20 lines for parser integration
+# 3. Check
+cargo check
+
+# 4. If OK, commit
+git add -A && git commit -m "feat: add PHP parser integration"
+
+# Task 2: Add PHPDoc analyzer
+# Repeat process...
+
+### Research API Before Implementation
+
+Before implementing, you must understand the available APIs.
+
+### Step 1: List available crates
+cat target/doc-md/index.md
+
+### Step 2: Read the main crate you'll use
+cat target/doc-md/{crate}/index.md
+
+### Step 3: Find specific types/functions
+grep -r "TypeName" target/doc-md/{crate}/
+
+### Step 4: Check crate info
+cargo info {crate}
+
+### Step 5: Look at examples in the crate repo
+
+### Fix Compilation Error
+
+There's a compilation error. Let me fix it properly.
+
+### Step 1: Understand the error
+cargo check 2>&1 | head -50
+
+### Step 2: Read relevant documentation
+The error mentions a specific type/function. Let me check the docs:
+```bash
+# Find the crate
+cat target/doc-md/index.md
+
+# Read the specific crate docs
+cat target/doc-md/{crate}/index.md
+```
+
+### Step 3: Fix ONE error at a time
+I will:
+1. Fix only the FIRST error
+2. Run cargo check
+3. If more errors, repeat
+
+### Step 4: Commit the fix
+git add -A && git commit -m "fix: {description of what was fixed}"
+
+DO NOT try to fix everything at once. One error at a time.
+
 ## Overview
 Build a comprehensive PHP Language Server on top of the basic LSP framework created in STEP 1. This implementation should include all requested features including WordPress hook support, PHPDoc parsing, and composer integration.
 
