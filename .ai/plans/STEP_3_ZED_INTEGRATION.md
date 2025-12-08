@@ -66,6 +66,30 @@ When compilation errors occur:
 3. # Identify relevant API usage patterns
    grep -r "LanguageServer" /Users/vasilsokolik/www/php-lsp-qwen/tmp/deputy/editors/zed/src/
 
+### Dependency Verification Protocol
+
+Before adding ANY new dependency:
+
+1. # Check crate information
+   cargo info {crate_name}
+2. # Review available features
+   cargo info {crate_name} --features
+3. # Verify latest version stability
+   # Ensure using stable version (not beta/alpha)
+4. # Examine dependency tree impact
+   cargo tree --prune={crate_name}
+5. # Check security advisories
+   cargo audit || echo "Install cargo-audit for security checking"
+6. # Review source/repo if possible
+   # Check last update, maintenance status, etc.
+
+### Feature Selection Best Practices
+
+- Enable ONLY required features to minimize dependencies
+- Prefer default features when they match project needs
+- Document rationale for each enabled feature
+- Avoid feature combinations that introduce conflicts
+
 ## Overview
 Create a comprehensive Zed extension for the PHP LSP implementation. This extension should handle automatic binary management, configuration, and provide a seamless user experience within the Zed editor.
 

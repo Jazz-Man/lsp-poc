@@ -68,6 +68,30 @@ When compilation errors occur:
 4. # Search for specific functionality
    grep -r "Pattern" target/doc-md/{crate}/
 
+### Dependency Verification Protocol
+
+Before adding ANY new dependency:
+
+1. # Check crate information
+   cargo info {crate_name}
+2. # Review available features
+   cargo info {crate_name} --features
+3. # Verify latest version stability
+   # Ensure using stable version (not beta/alpha)
+4. # Examine dependency tree impact
+   cargo tree --prune={crate_name}
+5. # Check security advisories
+   cargo audit || echo "Install cargo-audit for security checking"
+6. # Review source/repo if possible
+   # Check last update, maintenance status, etc.
+
+### Feature Selection Best Practices
+
+- Enable ONLY required features to minimize dependencies
+- Prefer default features when they match project needs
+- Document rationale for each enabled feature
+- Avoid feature combinations that introduce conflicts
+
 ## Overview
 Create a general-purpose LSP framework similar to async-language-server but with enhanced features and better abstractions for building language-specific LSPs. This framework should serve as the foundation for the PHP LSP and future language implementations.
 
