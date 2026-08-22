@@ -1,18 +1,12 @@
 /target/
- Cargo.lock
 *.rs.bk
 *.rlib
 *.prof*
-.idea/
-.vscode/
 *.swp
-.claude/settings.json
 .DS_Store
 *.log
 debug/
 release/
 
-!QWEN.md
-!.qwen/*
-!.kiro/*
-.qwen/settings.json
+!.cargo/*
+.cargo/credentials.toml
