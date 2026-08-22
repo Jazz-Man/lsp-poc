@@ -1,8 +1,10 @@
 use async_language_server::{
     lsp_types::{
-        ClientCapabilities, CompletionOptions, HoverProviderCapability, OneOf, SaveOptions,
-        ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
-        TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
+        ClientCapabilities, ColorProviderCapability, CompletionOptions, DocumentLinkOptions,
+        ExecuteCommandOptions, FoldingRangeProviderCapability, HoverProviderCapability, OneOf,
+        SaveOptions, SelectionRangeProviderCapability, ServerCapabilities, ServerInfo,
+        TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+        TextDocumentSyncSaveOptions,
     },
     server::{DocumentMatcher, Server},
 };
@@ -56,6 +58,18 @@ impl Server for PocLanguageServer {
             document_symbol_provider: Some(OneOf::Left(true)),
             document_formatting_provider: Some(OneOf::Left(true)),
             document_range_formatting_provider: Some(OneOf::Left(true)),
+            color_provider: Some(ColorProviderCapability::Simple(true)),
+            folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+            selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
+            document_link_provider: Some(DocumentLinkOptions {
+                resolve_provider: Some(false),
+                work_done_progress_options: Default::default(),
+            }),
+            definition_provider: Some(OneOf::Left(true)),
+            execute_command_provider: Some(ExecuteCommandOptions {
+                commands: vec!["json.sort".into()],
+                work_done_progress_options: Default::default(),
+            }),
 
             ..Default::default()
         })
