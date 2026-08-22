@@ -5,8 +5,16 @@ version.workspace = true
 edition.workspace = true
 description = "POC Language Server Protocol implementation"
 
+
+[[bin]]
+name = "lsp-poc"
+path = "src/main.rs"
+
+
 [dependencies]
 async-language-server.workspace = true
+tokio.workspace = true
+tracing-subscriber = { version = "0.3.23" , features = ["env-filter"] }
 
 
 [lints]
