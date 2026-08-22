@@ -28,8 +28,8 @@ lint = "clippy --workspace --all-targets --message-format=short"
 # wreq-util) — and reads THEIR rustfmt.toml, whose nightly-only options emit
 # 164 warnings on stable (and could reformat vendors). The -p forms touch
 # only workspace members (verified: 0 warnings).
-fmtcheck = "fmt -p client -p cookie-jar -p engine --check"
-fmtall = "fmt -p client -p cookie-jar -p engine"
+fmtcheck = "fmt -p lsp-poc -p zed-php-lsp --check"
+fmtall = "fmt -p lsp-poc -p zed-php-lsp"
 
 [env]
 # Uncomment to inspect exactly which config rust-analyzer applies on startup:

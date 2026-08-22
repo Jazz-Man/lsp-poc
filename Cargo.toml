@@ -12,6 +12,11 @@ edition = "2024"
 license = "MIT"
 publish = false
 
+
+[workspace.dependencies]
+async-language-server = { git = "https://github.com/filiptibell/async-language-server", features = ["tracing","tree-sitter"] }
+
+
 [profile.release]
 lto = true
 

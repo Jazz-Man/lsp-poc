@@ -6,9 +6,7 @@ edition.workspace = true
 description = "POC Language Server Protocol implementation"
 
 [dependencies]
-async-lsp = { version = "0.2.2", features = ["async-io", "forward", "tokio"] }
-tree-sitter = "0.25.10"
-tree-sitter-php = "0.24.2"
+async-language-server.workspace = true
 
 
 [lints]
