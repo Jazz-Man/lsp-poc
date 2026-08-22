@@ -1,11 +1,13 @@
 use async_language_server::{
     lsp_types::{
-        ClientCapabilities, HoverProviderCapability, SaveOptions, ServerCapabilities, ServerInfo,
-        TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-        TextDocumentSyncSaveOptions,
+        ClientCapabilities, CompletionOptions, HoverProviderCapability, SaveOptions,
+        ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
+        TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
     },
     server::{DocumentMatcher, Server},
 };
+
+use crate::completions::completion_trigger_characters;
 
 #[derive(Debug, Clone)]
 pub struct PocLanguageServer {}
@@ -44,6 +46,13 @@ impl Server for PocLanguageServer {
                     })),
                 },
             )),
+            completion_provider: Some(CompletionOptions {
+                resolve_provider: Some(false),
+                all_commit_characters: None,
+                trigger_characters: Some(completion_trigger_characters()),
+                work_done_progress_options: Default::default(),
+                ..Default::default()
+            }),
 
             ..Default::default()
         })
