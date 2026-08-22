@@ -1,7 +1,8 @@
 use async_language_server::{
     lsp_types::{
-        ClientCapabilities,
-        HoverProviderCapability, ServerCapabilities, ServerInfo,
+        ClientCapabilities, HoverProviderCapability, SaveOptions, ServerCapabilities, ServerInfo,
+        TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+        TextDocumentSyncSaveOptions,
     },
     server::{DocumentMatcher, Server},
 };
@@ -32,6 +33,17 @@ impl Server for PocLanguageServer {
     fn server_capabilities(_: ClientCapabilities) -> Option<ServerCapabilities> {
         Some(ServerCapabilities {
             hover_provider: Some(HoverProviderCapability::Simple(true)),
+            text_document_sync: Some(TextDocumentSyncCapability::Options(
+                TextDocumentSyncOptions {
+                    open_close: Some(true),
+                    change: Some(TextDocumentSyncKind::INCREMENTAL),
+                    will_save: None,
+                    will_save_wait_until: None,
+                    save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
+                        include_text: Some(false),
+                    })),
+                },
+            )),
 
             ..Default::default()
         })
