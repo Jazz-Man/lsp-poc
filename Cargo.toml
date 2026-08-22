@@ -2,7 +2,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/php-lsp"
+    "crates/php-lsp",
+    "crates/zed-php-lsp"
 ]
 
 [workspace.package]

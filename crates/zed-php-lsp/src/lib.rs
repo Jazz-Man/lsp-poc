@@ -8,7 +8,9 @@ struct PhpLspExtension {
 
 impl zed::Extension for PhpLspExtension {
     fn new() -> Self {
-        Self { cached_binary_path: None }
+        Self {
+            cached_binary_path: None,
+        }
     }
 
     fn language_server_command(
@@ -17,8 +19,8 @@ impl zed::Extension for PhpLspExtension {
         worktree: &zed::Worktree,
     ) -> Result<zed::Command> {
         let binary_path = worktree
-            .which("php-lsp")
-            .ok_or_else(|| "php-lsp not found in PATH".to_string())?;
+            .which("lsp-poc")
+            .ok_or_else(|| "lsp-poc not found in PATH".to_string())?;
 
         Ok(zed::Command {
             command: binary_path,
