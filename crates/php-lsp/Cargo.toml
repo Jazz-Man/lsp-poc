@@ -1,10 +1,15 @@
+
 [package]
-name = "php-lsp"
-version = "0.1.0"
-edition = "2021"
-description = "PHP Language Server Protocol implementation"
+name = "lsp-poc"
+version.workspace = true
+edition.workspace = true
+description = "POC Language Server Protocol implementation"
 
 [dependencies]
 async-lsp = { version = "0.2.2", features = ["async-io", "forward", "tokio"] }
 tree-sitter = "0.25.10"
 tree-sitter-php = "0.24.2"
+
+
+[lints]
+workspace = true

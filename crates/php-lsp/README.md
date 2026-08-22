@@ -1,1 +1,1 @@
-# PHP Language Server Protocol (LSP) Implementation
+# POC Language Server Protocol (LSP) Implementation
