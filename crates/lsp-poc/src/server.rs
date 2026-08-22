@@ -1,6 +1,6 @@
 use async_language_server::{
     lsp_types::{
-        ClientCapabilities, CompletionOptions, HoverProviderCapability, SaveOptions,
+        ClientCapabilities, CompletionOptions, HoverProviderCapability, OneOf, SaveOptions,
         ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
         TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
     },
@@ -53,6 +53,9 @@ impl Server for PocLanguageServer {
                 work_done_progress_options: Default::default(),
                 ..Default::default()
             }),
+            document_symbol_provider: Some(OneOf::Left(true)),
+            document_formatting_provider: Some(OneOf::Left(true)),
+            document_range_formatting_provider: Some(OneOf::Left(true)),
 
             ..Default::default()
         })
