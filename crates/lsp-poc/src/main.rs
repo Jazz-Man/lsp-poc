@@ -1,6 +1,7 @@
 mod cli;
 mod completions;
 mod hovers;
+mod schema;
 mod server;
 mod tracing;
 mod utils;
