@@ -77,9 +77,9 @@ impl Server for PocLanguageServer {
 
     fn server_document_matchers() -> Vec<DocumentMatcher> {
         vec![
-            DocumentMatcher::new("Zap Document")
-                .with_url_globs(["*.zap"])
-                .with_lang_strings(["Zap"]),
+            DocumentMatcher::new("json")
+                .with_url_globs(["**/*.json"])
+                .with_lang_grammar(tree_sitter_json::LANGUAGE.into()),
         ]
     }
 }
