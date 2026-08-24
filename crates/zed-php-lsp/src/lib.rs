@@ -2,11 +2,11 @@
 
 use zed_extension_api::{self as zed, Result};
 
-struct PhpLspExtension {
+struct LspPocExtension {
     cached_binary_path: Option<String>,
 }
 
-impl zed::Extension for PhpLspExtension {
+impl zed::Extension for LspPocExtension {
     fn new() -> Self {
         Self {
             cached_binary_path: None,
@@ -30,4 +30,4 @@ impl zed::Extension for PhpLspExtension {
     }
 }
 
-zed::register_extension!(PhpLspExtension);
+zed::register_extension!(LspPocExtension);
