@@ -14,7 +14,7 @@ publish = false
 
 
 [workspace.dependencies]
-async-language-server = { git = "https://github.com/Jazz-Man/async-language-server", features = ["tracing","tree-sitter"] }
+async-language-server = { git = "https://github.com/Jazz-Man/async-language-server", rev = "v0.0.1", features = ["tracing","tree-sitter"] }
 tokio = { version = "1.53.1", features = ["rt","fs","macros"] }
 
 
