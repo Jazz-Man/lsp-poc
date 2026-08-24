@@ -1,6 +1,6 @@
 
 [package]
-name = "zed-php-lsp"
+name = "zed-lsp-poc"
 version.workspace = true
 edition.workspace = true
 
