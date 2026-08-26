@@ -1,12 +1,13 @@
-/target/
 *.rs.bk
 *.rlib
 *.prof*
 *.swp
 .DS_Store
 *.log
-debug/
-release/
+target/*
 
 !.cargo/*
 .cargo/credentials.toml
+
+extension.wasm
+crates/**/target/
