@@ -26,7 +26,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 [[package]]
 name = "async-language-server"
 version = "0.0.0"
-source = "git+https://github.com/Jazz-Man/async-language-server#2c20fb100d249f3dd68ab5cee21b48acd8143985"
+source = "git+https://github.com/Jazz-Man/async-language-server#d7795c4617d0d3f6554d6dcfd11bd6fa997582fa"
 dependencies = [
  "async-lsp",
  "dashmap",
