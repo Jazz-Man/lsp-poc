@@ -1,11 +1,19 @@
-id = "zed-lsp-poc"
-name = "Zed lsp poc"
+id = "lsp-poc"
+name = "Lsp POC"
 version = "0.1.0"
 schema_version = 1
 description = "POC Language Server Protocol support for Zed"
 authors = ["Vasil Sokolik"]
 
-[language-server]
-name = "lsp-poc"
-command = "./lsp-poc"
-args = ["--stdio"]
+
+[language_servers.zed-lsp-poc]
+name = "Zed lsp POC"
+language = "JSON"
+languages = [
+  "JSON",
+  "JSONC",
+]
+
+[language-server.zed-lsp-poc.language_ids]
+"JSON"       = "json"
+"JSONC"      = "jsonc"
