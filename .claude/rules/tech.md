@@ -45,7 +45,6 @@ cargo run -p lsp-poc -- serve        # run the server standalone over stdio
 cargo lint                           # clippy across the workspace, short output
 cargo fmt --all --check              # format gate
 cargo test -p lsp-poc <test_name>    # once tests exist
-zed extension build                  # from crates/zed-php-lsp/ — rebuilds extension.wasm (gitignored artifact)
 ```
 
 ## Key Technical Decisions
