@@ -5,7 +5,7 @@
 {
 	"languages": {
 		"JSON": {
-			"language_servers": ["zed-lsp-poc", ".."]
+			"language_servers": ["zed-lsp-poc", "!json-language-server", ".."]
 		}
 	},
 	"lsp": {
