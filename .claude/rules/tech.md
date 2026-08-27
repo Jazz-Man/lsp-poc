@@ -19,7 +19,7 @@ One Rust workspace producing two artifacts: a native LSP server binary (`lsp-poc
 
 Run `cargo lint` (alias for `clippy --workspace --all-targets --message-format=short`) before calling work done.
 
-Workspace clippy gates live in the root `Cargo.toml`: `all` and `pedantic` at warn, plus `unwrap_used`, `expect_used`, and `dbg_macro` at warn. Never write `.unwrap()`, `.expect()`, or `dbg!()`. Propagate errors through `anyhow::Result` and use let-else for absent values, the way `hover()` in `crates/lsp-poc/src/server.rs` does:
+Workspace clippy gates live in the root `Cargo.toml`: `all` and `pedantic` at warn, plus `unwrap_used`, `expect_used`, and `dbg_macro` at warn. Never write `.unwrap()`, `.expect()`, or `dbg!()`. Propagate errors through the crate's typed error (`PocError`, see error-handling.md) inside server code, through `anyhow::Result` at the CLI edge; use let-else for absent values, the way `hover()` in `crates/lsp-poc/src/server.rs` does:
 
 ```rust
 let Some(doc) = state.document(&url) else { return Ok(None) };
