@@ -79,6 +79,7 @@ impl Server for PocLanguageServer {
         vec![
             DocumentMatcher::new("json")
                 .with_url_globs(["**/*.json"])
+                .with_lang_strings(["JSON"])
                 .with_lang_grammar(tree_sitter_json::LANGUAGE.into()),
         ]
     }

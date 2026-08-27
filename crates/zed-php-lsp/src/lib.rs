@@ -27,7 +27,7 @@ impl zed::Extension for LspPocExtension {
 
         Ok(zed::Command {
             command: bin_file,
-            args: vec!["--stdio".to_string()],
+            args: vec!["serve".to_string()],
             env: worktree.shell_env(),
         })
     }
