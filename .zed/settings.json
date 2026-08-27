@@ -6,6 +6,9 @@
 	"languages": {
 		"JSON": {
 			"language_servers": ["zed-lsp-poc", "!json-language-server", ".."]
+		},
+		"Rust": {
+			"language_servers": ["rust-analyzer", "!cargo-appraiser", ".."]
 		}
 	},
 	"lsp": {
