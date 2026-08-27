@@ -1,15 +1,13 @@
 use async_language_server::{
     lsp_types::{
-        ClientCapabilities, ColorProviderCapability, CompletionOptions, DocumentLinkOptions,
-        ExecuteCommandOptions, FoldingRangeProviderCapability, HoverProviderCapability, OneOf,
-        SaveOptions, SelectionRangeProviderCapability, ServerCapabilities, ServerInfo,
-        TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-        TextDocumentSyncSaveOptions,
+        ClientCapabilities, Hover, HoverContents, HoverParams, HoverProviderCapability,
+        MarkupContent, MarkupKind, ServerCapabilities, ServerInfo,
     },
-    server::{DocumentMatcher, Server},
+    server::{DocumentMatcher, Server, ServerResult, ServerState},
+    tree_sitter_utils::{ts_range_contains_lsp_position, ts_range_to_lsp_range},
 };
 
-use crate::completions::completion_trigger_characters;
+// use crate::completions::completion_trigger_characters;
 
 #[derive(Debug, Clone)]
 pub struct PocLanguageServer {}
@@ -37,39 +35,6 @@ impl Server for PocLanguageServer {
     fn server_capabilities(_: ClientCapabilities) -> Option<ServerCapabilities> {
         Some(ServerCapabilities {
             hover_provider: Some(HoverProviderCapability::Simple(true)),
-            text_document_sync: Some(TextDocumentSyncCapability::Options(
-                TextDocumentSyncOptions {
-                    open_close: Some(true),
-                    change: Some(TextDocumentSyncKind::INCREMENTAL),
-                    will_save: None,
-                    will_save_wait_until: None,
-                    save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
-                        include_text: Some(false),
-                    })),
-                },
-            )),
-            completion_provider: Some(CompletionOptions {
-                resolve_provider: Some(false),
-                all_commit_characters: None,
-                trigger_characters: Some(completion_trigger_characters()),
-                work_done_progress_options: Default::default(),
-                ..Default::default()
-            }),
-            document_symbol_provider: Some(OneOf::Left(true)),
-            document_formatting_provider: Some(OneOf::Left(true)),
-            document_range_formatting_provider: Some(OneOf::Left(true)),
-            color_provider: Some(ColorProviderCapability::Simple(true)),
-            folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
-            selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
-            document_link_provider: Some(DocumentLinkOptions {
-                resolve_provider: Some(false),
-                work_done_progress_options: Default::default(),
-            }),
-            definition_provider: Some(OneOf::Left(true)),
-            execute_command_provider: Some(ExecuteCommandOptions {
-                commands: vec!["json.sort".into()],
-                work_done_progress_options: Default::default(),
-            }),
 
             ..Default::default()
         })
@@ -82,5 +47,33 @@ impl Server for PocLanguageServer {
                 .with_lang_strings(["JSON"])
                 .with_lang_grammar(tree_sitter_json::LANGUAGE.into()),
         ]
+    }
+
+    async fn hover(&self, state: ServerState, params: HoverParams) -> ServerResult<Option<Hover>> {
+        let url = params.text_document_position_params.text_document.uri;
+        let pos = params.text_document_position_params.position;
+
+        let Some(doc) = state.document(&url) else {
+            return Ok(None);
+        };
+
+        let Some(node) = doc.node_at_position_named(pos) else {
+            tracing::debug!("Missing node for hover at {}:{}", pos.line, pos.character);
+            return Ok(None);
+        };
+
+        if !ts_range_contains_lsp_position(node.range(), pos) {
+            return Ok(None);
+        }
+
+        tracing::debug!("Getting hover for node at {}:{}", pos.line, pos.character);
+
+        Ok(Some(Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "```json\n".to_string() + &node.to_string() + "\n```",
+            }),
+            range: Some(ts_range_to_lsp_range(node.range())),
+        }))
     }
 }
