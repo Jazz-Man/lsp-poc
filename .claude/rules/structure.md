@@ -14,7 +14,7 @@ Gotcha: a module file on disk is dead until declared in `main.rs`. `schema/` and
 
 ### The Zed extension
 
-`/crates/zed-md-lsp/` (package `zed-lsp-poc`, wasm `cdylib`) is a launcher only. `language_server_command()` in `src/lib.rs` spawns the hardcoded path `/Users/vasilsokolik/www/lsp-poc/target/debug/lsp-poc` with the argument `serve`. Consequence: a debug build must exist before the extension works, and server changes need only `cargo build` — rebuild `extension.wasm` only when the extension crate itself changes. `extension.toml` registers the server for JSON and JSONC; `.zed/settings.json` selects it and disables `json-language-server`.
+`/crates/zed-md-lsp/` (package `zed-lsp-poc`, wasm `cdylib`) is a launcher only. `language_server_command()` in `src/lib.rs` spawns `<worktree root>/target/<profile>/lsp-poc` — `profile` comes from `lsp.zed-lsp-poc.settings.profile` (default `debug`) — with the argument `serve`. Consequence: a build of the selected profile must exist before the extension works, and server changes need only `cargo build` — rebuild `extension.wasm` only when the extension crate itself changes. `extension.toml` registers the server for JSON and JSONC; `.zed/settings.json` selects it and disables `json-language-server`.
 
 ## The Capability Wiring Pattern
 
@@ -30,7 +30,7 @@ Always do both halves of the pair: a capability advertised but not implemented l
 
 Crates use kebab-case for both directories and package names. Modules are lowercase, one word where possible, in `mod.rs`-style directories. The server type is `PocLanguageServer`.
 
-The extension's directory (`crates/zed-md-lsp`) and package name (`zed-lsp-poc`) disagree — the directory is a leftover from the project's original PHP focus, as are `src/utils.rs` and lib.rs's "Zed extension for PHP LSP" doc comment. Always pass the package name to cargo (`cargo -p zed-lsp-poc`), and do not propagate the PHP name into new files, commands, or docs.
+The extension's directory (`crates/zed-md-lsp`) and package name (`zed-lsp-poc`) disagree — the directory is a leftover from the project's original PHP focus, as is `src/utils.rs`. Always pass the package name to cargo (`cargo -p zed-lsp-poc`), and do not propagate the PHP name into new files, commands, or docs.
 
 ---
 _Describe the wiring pattern once so new capabilities and modules slot in without structural debate; the two-crate split and the capability/method pairing are the invariant parts._

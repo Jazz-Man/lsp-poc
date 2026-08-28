@@ -48,7 +48,7 @@
 
 **Interfaces:**
 - Consumes: `zed::settings::LspSettings::for_worktree`, `worktree.root_path()`, `worktree.shell_env()`, `LanguageServerId::as_ref`, `zed_extension_api::serde_json::Value` (re-export; no new dependency), the `Command` builder from the API's `process` module.
-- Produces: the final launcher behavior — `enum Profile { Debug, Release }` with `as_str()` and `from_settings()`, and the command built from worktree root + profile. Task 2's settings key and docs consume this behavior.
+- Produces: the final launcher behavior — `enum Profile { Debug, Release }` with `as_str()` and `from_settings(Option<&Value>)`, and the command built from worktree root + profile. Task 2's settings key and docs consume this behavior.
 
 - [ ] **Step 1: Add lint inheritance to `crates/zed-md-lsp/Cargo.toml`**
 
@@ -98,7 +98,7 @@ impl Profile {
     /// An absent or `null` `profile` falls back to `Debug`. An unknown
     /// settings key, an invalid profile value, or a non-object `settings`
     /// is an error, so a misconfiguration surfaces at server start.
-    fn from_settings(settings: &Option<Value>) -> Result<Self> {
+    fn from_settings(settings: Option<&Value>) -> Result<Self> {
         let settings = match settings {
             None => return Ok(Self::default()),
             Some(Value::Object(map)) => map,
@@ -139,7 +139,7 @@ impl zed::Extension for LspPocExtension {
         // `binary.path` settings override) once the experimental phase is
         // over.
         let settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree)?;
-        let profile = Profile::from_settings(&settings.settings)?;
+        let profile = Profile::from_settings(settings.settings.as_ref())?;
         let bin_file = Path::new(worktree.root_path().as_str())
             .join("target")
             .join(profile.as_str())
@@ -245,6 +245,18 @@ with:
 
 ```markdown
 `language_server_command()` in `src/lib.rs` spawns `<worktree root>/target/<profile>/lsp-poc` — `profile` comes from `lsp.zed-lsp-poc.settings.profile` (default `debug`) — with the argument `serve`.
+```
+
+3a-2. The next sentence's first clause is stale for the same reason — replace:
+
+```markdown
+Consequence: a debug build must exist before the extension works, and server changes need only `cargo build`
+```
+
+with:
+
+```markdown
+Consequence: a build of the selected profile must exist before the extension works, and server changes need only `cargo build`
 ```
 
 3b. The Naming section lists the PHP doc comment as a leftover; Task 1 removed it. Replace:

@@ -1,17 +1,14 @@
-//! Zed extension for PHP LSP
+//! Zed extension launcher for the lsp-poc language server.
 
+use std::path::Path;
 use zed_extension_api::{self as zed, Result};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct LspPocExtension {
-    cached_binary_path: Option<String>,
-}
+struct LspPocExtension;
 
 impl zed::Extension for LspPocExtension {
     fn new() -> Self {
-        Self {
-            cached_binary_path: None,
-        }
+        Self
     }
 
     fn language_server_command(
@@ -19,17 +16,16 @@ impl zed::Extension for LspPocExtension {
         _language_server_id: &zed::LanguageServerId,
         worktree: &zed::Worktree,
     ) -> Result<zed::Command> {
-        // let binary_path = worktree
-        //     .which("lsp-poc")
-        //     .ok_or_else(|| "lsp-poc not found in PATH".to_string())?;
+        let bin = Path::new(worktree.root_path().as_str())
+            .join("target")
+            .join("debug")
+            .join("lsp-poc")
+            .to_string_lossy()
+            .to_string();
 
-        let bin_file = "/Users/vasilsokolik/www/lsp-poc/target/debug/lsp-poc".to_string();
-
-        Ok(zed::Command {
-            command: bin_file,
-            args: vec!["serve".to_string()],
-            env: worktree.shell_env(),
-        })
+        Ok(zed::Command::new(bin)
+            .args(["serve", "--stdio"])
+            .envs(worktree.shell_env()))
     }
 }
 

@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-- Build: `cargo build` — the Zed extension launches the debug binary at `target/debug/lsp-poc`, so rebuild after server changes for the extension to pick them up
+- Build: `cargo build` — the Zed extension launches `target/debug/lsp-poc` by default (`target/release/lsp-poc` via `lsp.zed-lsp-poc.settings.profile` in `.zed/settings.json`), so rebuild after server changes for the extension to pick them up
 - Run the server: `cargo run -p lsp-poc -- serve` (stdio transport; the `--socket` flag is parsed but currently unused)
 - Lint: `cargo lint` (alias for `clippy --workspace --all-targets --message-format=short`)
 - Format: `cargo fmt --all --check` / `cargo fmt --all` — note: the `fmtcheck`/`fmtall` aliases in `.cargo/config.toml` reference package `zed-md-lsp` (the directory name) instead of `zed-lsp-poc` (the package name) and fail
 - Tests: none exist yet; once added, run a single test with `cargo test -p lsp-poc <test_name>`
-- Zed extension wasm: rebuilt with Zed's extension CLI (`zed extension build` from `crates/zed-md-lsp/`); `extension.wasm` is a gitignored local artifact
+- Zed extension: installed as a dev extension in Zed and rebuilt through the Zed UI by the owner (no CLI); `extension.wasm` is a gitignored local artifact
 
 ## Architecture
 
@@ -29,7 +29,7 @@ Rust workspace (edition 2024, stable toolchain) with two crates forming one pipe
 ### `crates/zed-md-lsp` — Zed extension
 
 - Package name is `zed-lsp-poc`; the directory name is a leftover from the project's original PHP focus. Use the package name in `cargo -p` commands.
-- wasm `cdylib` on `zed_extension_api`. `language_server_command()` launches the lsp-poc binary with the `serve` subcommand; the binary path is hardcoded to the absolute debug path `/Users/vasilsokolik/www/lsp-poc/target/debug/lsp-poc`, so a debug build must exist before the extension works.
+- wasm `cdylib` on `zed_extension_api`. `language_server_command()` launches the lsp-poc binary with the `serve` subcommand; the path is `<worktree-root>/target/<debug|release>/lsp-poc`, chosen by `lsp.zed-lsp-poc.settings.profile` in `.zed/settings.json` (default `debug`), so a build of the selected profile must exist before the extension works.
 - `extension.toml` registers it for JSON/JSONC; `.zed/settings.json` selects it for JSON and disables `json-language-server`.
 
 ## Conventions
