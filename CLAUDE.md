@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Build: `cargo build` — the Zed extension launches the debug binary at `target/debug/lsp-poc`, so rebuild after server changes for the extension to pick them up
 - Run the server: `cargo run -p lsp-poc -- serve` (stdio transport; the `--socket` flag is parsed but currently unused)
 - Lint: `cargo lint` (alias for `clippy --workspace --all-targets --message-format=short`)
-- Format: `cargo fmt --all --check` / `cargo fmt --all` — note: the `fmtcheck`/`fmtall` aliases in `.cargo/config.toml` reference package `zed-php-lsp` (the directory name) instead of `zed-lsp-poc` (the package name) and fail
+- Format: `cargo fmt --all --check` / `cargo fmt --all` — note: the `fmtcheck`/`fmtall` aliases in `.cargo/config.toml` reference package `zed-md-lsp` (the directory name) instead of `zed-lsp-poc` (the package name) and fail
 - Tests: none exist yet; once added, run a single test with `cargo test -p lsp-poc <test_name>`
-- Zed extension wasm: rebuilt with Zed's extension CLI (`zed extension build` from `crates/zed-php-lsp/`); `extension.wasm` is a gitignored local artifact
+- Zed extension wasm: rebuilt with Zed's extension CLI (`zed extension build` from `crates/zed-md-lsp/`); `extension.wasm` is a gitignored local artifact
 
 ## Architecture
 
@@ -26,7 +26,7 @@ Rust workspace (edition 2024, stable toolchain) with two crates forming one pipe
 - Feature modules: `completions/` holds a trigger-characters helper not yet wired into capabilities (its reference in `server.rs` is commented out); `hovers/` and `schema/` are empty placeholders
 - `src/tracing.rs`: all logs go to **stderr** because stdout is the LSP transport — never print to stdout. Level controlled by `RUST_LOG`; defaults to DEBUG in debug builds, INFO in release.
 
-### `crates/zed-php-lsp` — Zed extension
+### `crates/zed-md-lsp` — Zed extension
 
 - Package name is `zed-lsp-poc`; the directory name is a leftover from the project's original PHP focus. Use the package name in `cargo -p` commands.
 - wasm `cdylib` on `zed_extension_api`. `language_server_command()` launches the lsp-poc binary with the `serve` subcommand; the binary path is hardcoded to the absolute debug path `/Users/vasilsokolik/www/lsp-poc/target/debug/lsp-poc`, so a debug build must exist before the extension works.

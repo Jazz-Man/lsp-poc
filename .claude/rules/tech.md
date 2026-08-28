@@ -27,7 +27,7 @@ let Some(doc) = state.document(&url) else { return Ok(None) };
 
 ### Formatting
 
-Check with `cargo fmt --all --check`; fix with `cargo fmt --all`. Do not use the `fmtcheck`/`fmtall` aliases from `.cargo/config.toml` — they pass `-p zed-php-lsp`, but the package is named `zed-lsp-poc`, so both aliases fail.
+Check with `cargo fmt --all --check`; fix with `cargo fmt --all`. Do not use the `fmtcheck`/`fmtall` aliases from `.cargo/config.toml` — they pass `-p zed-md-lsp`, but the package is named `zed-lsp-poc`, so both aliases fail.
 
 ### Testing
 
