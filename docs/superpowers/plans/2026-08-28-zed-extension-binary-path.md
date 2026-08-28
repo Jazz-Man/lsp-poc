@@ -12,11 +12,13 @@
 
 **Reference idiom:** `biomejs/biome-zed` `src/biome.rs` (same API version 0.7.0, verified via repomix): it depends on no serde crates, imports `serde_json` through the `zed_extension_api` re-export, forwards `language_server_id.as_ref()` to `LspSettings::for_worktree`, and builds paths with `Path::new(worktree.root_path().as_str()).join(...)`. This plan follows all four. Additionally, the crate's `src/process.rs` provides a builder (`Command::new(...).arg(...).envs(...)`) on the very `Command` type `language_server_command` returns — verified one type via the WIT: `extension.wit` does `use process.{command};`, so the extension interface imports the record from the `process` interface.
 
+**Tests: deliberately none in this crate** (owner's decision, 2026-08-28): the Zed-integration glue is temporary POC scaffolding — the `profile` option included — and the real work happens in the server crate `crates/lsp-poc`, where tests belong. Verification here is compile + lint + the owner's live test in Zed.
+
 ## Global Constraints
 
 - Always `cargo -p zed-lsp-poc` (package name); the directory is `crates/zed-md-lsp`.
-- **Zero new dependencies.** Never add `serde`/`serde_json` (or anything else) to `Cargo.toml` `[dependencies]` — use the `zed_extension_api::serde_json` re-export for `Value` and `json!`. The only manifest change in this plan is `[lints]`.
-- Workspace clippy gates are warn-level: never write `.unwrap()`, `.expect()`, `dbg!()` — **including in tests**. Tests that need error propagation return `Result<(), Box<dyn std::error::Error>>` and use `?`; `From<String> for Box<dyn Error>` covers our `String` error type.
+- **Zero new dependencies.** Never add `serde`/`serde_json` (or anything else) to `Cargo.toml` `[dependencies]` — use the `zed_extension_api::serde_json` re-export for `Value`. The only manifest change in this plan is `[lints]`.
+- Workspace clippy gates are warn-level: never write `.unwrap()`, `.expect()`, `dbg!()`.
 - Error messages: lowercase start, no trailing punctuation, JSON keeps its case (`err-lowercase-msg`). `String` errors here are the `Extension` trait's host-API contract (`pub type Result<T, E = String>`), not a violation of the typed-error rule — the launcher crate gets no error module (project rule `error-handling.md`).
 - `.zed/settings.json` is **JSONC with tab indentation** — preserve both.
 - The server crate `crates/lsp-poc` is untouched by this plan.
@@ -33,23 +35,20 @@
 | `serde-deny-unknown-fields` (its intent, hand-rolled) | unknown settings keys are hard errors, not silently dropped — manual because no serde derive is used |
 | `type-path-not-string` | binary path built with `Path::join`, converted to `String` only at the `Command` boundary |
 | `pat-exhaustive-enum` | every `match` enumerates its variants explicitly; catch-alls only where the type is open (`Value`) |
-| `pat-let-else` / early-return matches | absent settings short-circuit to the documented default |
 | `err-lowercase-msg` | all error strings lowercase, no trailing punctuation |
 | `name-as-free` | `Profile::as_str()` for the cheap borrow conversion |
-| `test-cfg-test-module`, `test-use-super`, `test-descriptive-names` | `#[cfg(test)] mod tests`, `use super::*`, behavior-named tests |
-| `err-question-mark`, `anti-unwrap-abuse` | `?` everywhere; zero unwrap/expect (gates at warn) |
 
 ---
 
-### Task 1: `Profile` enum with the validating `from_settings` constructor
+### Task 1: `Profile` type + settings-driven `language_server_command()`
 
 **Files:**
-- Modify: `crates/zed-md-lsp/src/lib.rs`
 - Modify: `crates/zed-md-lsp/Cargo.toml` (lint inheritance only)
+- Modify: `crates/zed-md-lsp/src/lib.rs`
 
 **Interfaces:**
-- Consumes: `zed_extension_api::serde_json::Value` (re-export; no new dependency).
-- Produces: `enum Profile { Debug, Release }` (`Copy`, `#[default] Debug`), `fn as_str(self) -> &'static str` → `"debug"`/`"release"`, and `fn from_settings(settings: &Option<Value>) -> zed_extension_api::Result<Profile>`. Task 2 consumes all three.
+- Consumes: `zed::settings::LspSettings::for_worktree`, `worktree.root_path()`, `worktree.shell_env()`, `LanguageServerId::as_ref`, `zed_extension_api::serde_json::Value` (re-export; no new dependency), the `Command` builder from the API's `process` module.
+- Produces: the final launcher behavior — `enum Profile { Debug, Release }` with `as_str()` and `from_settings()`, and the command built from worktree root + profile. Task 2's settings key and docs consume this behavior.
 
 - [ ] **Step 1: Add lint inheritance to `crates/zed-md-lsp/Cargo.toml`**
 
@@ -63,181 +62,9 @@ workspace = true
 
 The `[dependencies]` section stays exactly as it is (`zed_extension_api = "0.7.0"` only).
 
-- [ ] **Step 2: Write the failing tests**
+- [ ] **Step 2: Rewrite `crates/zed-md-lsp/src/lib.rs`**
 
-Replace the import block at the top of `crates/zed-md-lsp/src/lib.rs` — currently three lines (`use zed::http_client;` and `use zed::settings::LspSettings;`, added by the owner during exploration, plus the original `use zed_extension_api::{self as zed, Result};`) — with:
-
-```rust
-use zed_extension_api::{self as zed, serde_json::Value, Result};
-```
-
-(`http_client` is unused; `LspSettings` returns in Task 2's merged import.)
-
-Append at the end of the file:
-
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use zed::serde_json::json;
-
-    type TestResult = Result<(), Box<dyn std::error::Error>>;
-
-    #[test]
-    fn absent_settings_default_to_debug() {
-        assert_eq!(Profile::from_settings(&None), Ok(Profile::Debug));
-    }
-
-    #[test]
-    fn null_profile_defaults_to_debug() -> TestResult {
-        let profile = Profile::from_settings(&Some(json!({ "profile": null })))?;
-        assert_eq!(profile, Profile::Debug);
-        Ok(())
-    }
-
-    #[test]
-    fn absent_profile_defaults_to_debug() -> TestResult {
-        let profile = Profile::from_settings(&Some(json!({})))?;
-        assert_eq!(profile, Profile::Debug);
-        Ok(())
-    }
-
-    #[test]
-    fn release_profile_selected() -> TestResult {
-        let profile = Profile::from_settings(&Some(json!({ "profile": "release" })))?;
-        assert_eq!(profile, Profile::Release);
-        Ok(())
-    }
-
-    #[test]
-    fn debug_profile_selected() -> TestResult {
-        let profile = Profile::from_settings(&Some(json!({ "profile": "debug" })))?;
-        assert_eq!(profile, Profile::Debug);
-        Ok(())
-    }
-
-    #[test]
-    fn unknown_profile_rejected() {
-        assert_eq!(
-            Profile::from_settings(&Some(json!({ "profile": "nightly" }))),
-            Err("invalid profile \"nightly\": expected \"debug\" or \"release\"".to_string())
-        );
-    }
-
-    #[test]
-    fn non_string_profile_rejected() {
-        assert_eq!(
-            Profile::from_settings(&Some(json!({ "profile": 42 }))),
-            Err("invalid profile 42: expected \"debug\" or \"release\"".to_string())
-        );
-    }
-
-    #[test]
-    fn unknown_setting_key_rejected() {
-        assert_eq!(
-            Profile::from_settings(&Some(json!({ "profille": "release" }))),
-            Err("unknown setting \"profille\": expected \"profile\"".to_string())
-        );
-    }
-
-    #[test]
-    fn non_object_settings_rejected() {
-        assert_eq!(
-            Profile::from_settings(&Some(json!("release"))),
-            Err("settings must be an object".to_string())
-        );
-    }
-
-    #[test]
-    fn as_str_matches_target_directory_names() {
-        assert_eq!(Profile::Debug.as_str(), "debug");
-        assert_eq!(Profile::Release.as_str(), "release");
-    }
-}
-```
-
-- [ ] **Step 3: Run the tests to verify they fail**
-
-Run: `cargo test -p zed-lsp-poc`
-Expected: compile FAIL — `E0412 cannot find type Profile` (and `E0599` for `from_settings`/`as_str`).
-
-- [ ] **Step 4: Write the implementation**
-
-In `crates/zed-md-lsp/src/lib.rs`, add above the `impl zed::Extension` block:
-
-```rust
-/// Cargo build profile the extension launches.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum Profile {
-    #[default]
-    Debug,
-    Release,
-}
-
-impl Profile {
-    /// The profile's directory name under `target/`.
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Debug => "debug",
-            Self::Release => "release",
-        }
-    }
-
-    /// Extracts the profile from the extension's `settings` JSON.
-    ///
-    /// An absent or `null` `profile` falls back to `Debug`. An unknown
-    /// settings key, an invalid profile value, or a non-object `settings`
-    /// is an error, so a misconfiguration surfaces at server start.
-    fn from_settings(settings: &Option<Value>) -> Result<Self> {
-        let settings = match settings {
-            None => return Ok(Self::default()),
-            Some(Value::Object(map)) => map,
-            Some(_) => return Err("settings must be an object".to_string()),
-        };
-        if let Some(unknown) = settings.keys().find(|key| key.as_str() != "profile") {
-            return Err(format!("unknown setting {unknown:?}: expected \"profile\""));
-        }
-        match settings.get("profile") {
-            None | Some(Value::Null) => Ok(Self::default()),
-            Some(Value::String(profile)) => match profile.as_str() {
-                "debug" => Ok(Self::Debug),
-                "release" => Ok(Self::Release),
-                other => Err(format!(
-                    "invalid profile {other:?}: expected \"debug\" or \"release\""
-                )),
-            },
-            Some(other) => Err(format!(
-                "invalid profile {other}: expected \"debug\" or \"release\""
-            )),
-        }
-    }
-}
-```
-
-- [ ] **Step 5: Run the tests to verify they pass**
-
-Run: `cargo test -p zed-lsp-poc`
-Expected: `test result: ok. 10 passed; 0 failed`.
-
-- [ ] **Step 6: Format and lint**
-
-Run: `cargo fmt --all && cargo lint`
-Expected: rustfmt may reflow some arms — let it; lint reports no new warnings for this crate (now gated by the workspace `[lints]`).
-
----
-
-### Task 2: Rewrite `language_server_command()` and remove dead weight
-
-**Files:**
-- Modify: `crates/zed-md-lsp/src/lib.rs`
-
-**Interfaces:**
-- Consumes: `Profile`/`as_str`/`from_settings` (Task 1), `zed::settings::LspSettings::for_worktree`, `worktree.root_path()`, `worktree.shell_env()`, `LanguageServerId::as_ref`.
-- Produces: the final launcher behavior. Nothing downstream consumes it.
-
-- [ ] **Step 1: Rewrite the file's items**
-
-Full target content of the non-test part of `crates/zed-md-lsp/src/lib.rs` after this step (doc-comment fix included — the current first line says "PHP", which is false):
+Replace the entire file content with (the current file's first line says "PHP", which is false; the owner's two exploratory imports and the dead `cached_binary_path` field are consolidated away):
 
 ```rust
 //! Zed extension launcher for the lsp-poc language server.
@@ -329,14 +156,9 @@ impl zed::Extension for LspPocExtension {
 zed::register_extension!(LspPocExtension);
 ```
 
-Deleted along the way: the `cached_binary_path` field (unused template leftover), the commented-out `worktree.which()` block, and the `//! Zed extension for PHP LSP` header.
+Deleted along the way: the unused `cached_binary_path` field, the commented-out `worktree.which()` block, the false "PHP" header, and the owner's exploratory `use zed::http_client;` line (`LspSettings` returns via the merged import).
 
-- [ ] **Step 2: Run all tests**
-
-Run: `cargo test -p zed-lsp-poc`
-Expected: `test result: ok. 10 passed; 0 failed`.
-
-- [ ] **Step 3: Verify the wasm target still compiles**
+- [ ] **Step 3: Verify it compiles for the wasm target**
 
 Run: `cargo check -p zed-lsp-poc --target wasm32-wasip2`
 Expected: `Finished` with no errors (the target is installed — verified during planning).
@@ -344,11 +166,11 @@ Expected: `Finished` with no errors (the target is installed — verified during
 - [ ] **Step 4: Format and lint**
 
 Run: `cargo fmt --all && cargo lint`
-Expected: clean.
+Expected: rustfmt may reflow some arms — let it; lint reports no new warnings for this crate (now gated by the workspace `[lints]`).
 
 ---
 
-### Task 3: Default `profile` in settings, doc truth fixes, final gate
+### Task 2: Default `profile` in settings, doc truth fixes, final gate
 
 **Files:**
 - Modify: `.zed/settings.json`
@@ -356,7 +178,7 @@ Expected: clean.
 - Modify: `.claude/rules/structure.md`
 
 **Interfaces:**
-- Consumes: the behavior shipped in Task 2 (the settings key it reads: `lsp.zed-lsp-poc.settings.profile`).
+- Consumes: the behavior shipped in Task 1 (the settings key it reads: `lsp.zed-lsp-poc.settings.profile`).
 - Produces: documentation that matches the shipped behavior; the owner handoff.
 
 - [ ] **Step 1: Set the explicit default in `.zed/settings.json`**
@@ -425,7 +247,7 @@ with:
 `language_server_command()` in `src/lib.rs` spawns `<worktree root>/target/<profile>/lsp-poc` — `profile` comes from `lsp.zed-lsp-poc.settings.profile` (default `debug`) — with the argument `serve`.
 ```
 
-3b. The Naming section lists the PHP doc comment as a leftover; Task 2 removed it. Replace:
+3b. The Naming section lists the PHP doc comment as a leftover; Task 1 removed it. Replace:
 
 ```markdown
 the directory is a leftover from the project's original PHP focus, as are `src/utils.rs` and lib.rs's "Zed extension for PHP LSP" doc comment.
@@ -444,15 +266,14 @@ Run each; all must pass:
 ```bash
 cargo fmt --all --check
 cargo lint
-cargo test -p zed-lsp-poc
 cargo check -p zed-lsp-poc --target wasm32-wasip2
 ```
 
-Expected: fmt clean, lint with no new warnings, `10 passed; 0 failed`, wasm check `Finished`.
+Expected: fmt clean, lint with no new warnings, wasm check `Finished`.
 
 - [ ] **Step 5: Hand off to the owner for the live test and commits**
 
-All changes from Tasks 1–3 sit in the working tree uncommitted; the owner reviews and commits them (a natural split is one commit per task's file set). The agent's work ends here. Report to the owner:
+All changes from Tasks 1–2 sit in the working tree uncommitted; the owner reviews and commits them (a natural split is one commit per task's file set). The agent's work ends here. Report to the owner:
 1. Rebuild the dev extension via the Zed UI and restart the language server.
 2. Hover over a JSON file — server starts from `target/debug/lsp-poc`.
 3. Flip `profile` to `"release"`, restart the server — starts from `target/release/lsp-poc` (if that binary is absent, Zed shows a start error — correct signal).
