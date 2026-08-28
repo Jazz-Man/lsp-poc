@@ -4,8 +4,8 @@
 // see the documentation: https://zed.dev/docs/configuring-zed#settings-files
 {
 	"languages": {
-		"JSON": {
-			"language_servers": ["zed-lsp-poc", "!json-language-server", ".."]
+		"Markdown": {
+			"language_servers": ["zed-lsp-poc", ".."]
 		},
 		"Rust": {
 			"language_servers": ["rust-analyzer", "!cargo-appraiser", ".."]

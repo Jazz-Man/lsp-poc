@@ -8,12 +8,10 @@ authors = ["Vasil Sokolik"]
 
 [language_servers.zed-lsp-poc]
 name = "Zed lsp POC"
-language = "JSON"
+language = "Markdown"
 languages = [
-  "JSON",
-  "JSONC",
+  "Markdown",
 ]
 
 [language-server.zed-lsp-poc.language_ids]
-"JSON"       = "json"
-"JSONC"      = "jsonc"
+"Markdown"       = "markdown"

@@ -42,10 +42,10 @@ impl Server for PocLanguageServer {
 
     fn server_document_matchers() -> Vec<DocumentMatcher> {
         vec![
-            DocumentMatcher::new("json")
-                .with_url_globs(["**/*.json"])
-                .with_lang_strings(["JSON"])
-                .with_lang_grammar(tree_sitter_json::LANGUAGE.into()),
+            DocumentMatcher::new("Markdown")
+                .with_url_globs(["**/*.md"])
+                .with_lang_strings(["Markdown"])
+                .with_lang_grammar(tree_sitter_md::LANGUAGE.into()),
         ]
     }
 
