@@ -7,8 +7,6 @@ use async_language_server::{
     tree_sitter_utils::{ts_range_contains_lsp_position, ts_range_to_lsp_range},
 };
 
-// use crate::completions::completion_trigger_characters;
-
 #[derive(Debug, Clone)]
 pub struct PocLanguageServer {}
 
