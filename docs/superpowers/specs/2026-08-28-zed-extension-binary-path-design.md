@@ -31,6 +31,7 @@ Zed starts a server for a worktree → calls `language_server_command(id, worktr
 | `"debug"` / `"release"` | matching `target/` subdirectory |
 | any other string or non-string | start error: `invalid profile <value>: expected "debug" or "release"` |
 | `settings` present but not an object | start error: `settings must be an object` |
+| any settings key other than `profile` | start error: `unknown setting <key>: expected "profile"` (typo protection) |
 
 Errors from `for_worktree` itself propagate as start errors too. No silent fallback: an invalid setting is a signal, not noise.
 
