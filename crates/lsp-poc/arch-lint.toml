@@ -1,0 +1,160 @@
+# arch-lint declarative layer rules (scopes + deny-scope-dep).
+# Real documentation: https://github.com/ynishi/arch-lint
+#
+# The rule set itself is wired programmatically in tests/architecture.rs:
+# through check!() the preset picks hardcoded defaults and every [rules.*]
+# behavior option (allow_patterns, allow_in_tests, thresholds) is parsed but
+# never consulted. Only the [[scopes]] / [[deny-scope-dep]] sections below
+# are loaded, by load_rules_from_toml in the test.
+#
+# Per-item suppressions in src/ use the comment form (arch-lint is a
+# dev-dependency, so its attribute form cannot compile inside the bin):
+#   // arch-lint: allow(rule-name) reason="why this is deliberate"
+
+# --- Layer rules mirroring .claude/rules/structure.md -------------------------
+# The dependency direction: tracing and error are leaves; links (the shared
+# link stack: normalize, inline side-parse, offtree) sits below the feature
+# modules; workspace (the cross-file index) may reuse links but stays below
+# features. The capability modules — hovers, code-actions, definitions,
+# references, renames, completions, diagnostics, symbols — are siblings and
+# never import each other: shared logic goes into links/workspace, wiring
+# stays in server.rs. server.rs is the single Server impl below the CLI edge;
+# cli owns clap and the serve() call. Scopes for modules that the feature
+# spec has not landed yet (error, links, workspace, most capabilities) are
+# declared up front so the layering guards the structure as it grows.
+# src/utils.rs is deliberately unscoped: it is an undeclared PHP-era leftover
+# pending an owner decision, outside the layer stack.
+
+[[scopes]]
+name = "tracing"
+paths = ["src/tracing.rs"]
+
+[[scopes]]
+name = "error"
+paths = ["src/error.rs"]
+
+[[scopes]]
+name = "links"
+paths = ["src/links/**"]
+
+[[scopes]]
+name = "workspace"
+paths = ["src/workspace/**"]
+
+[[scopes]]
+name = "hovers"
+paths = ["src/hovers/**"]
+
+[[scopes]]
+name = "code-actions"
+paths = ["src/code_actions/**"]
+
+[[scopes]]
+name = "definitions"
+paths = ["src/definitions/**"]
+
+[[scopes]]
+name = "references"
+paths = ["src/references/**"]
+
+[[scopes]]
+name = "renames"
+paths = ["src/renames/**"]
+
+[[scopes]]
+name = "completions"
+paths = ["src/completions/**"]
+
+[[scopes]]
+name = "diagnostics"
+paths = ["src/diagnostics/**"]
+
+[[scopes]]
+name = "symbols"
+paths = ["src/symbols/**"]
+
+[[scopes]]
+name = "server"
+paths = ["src/server.rs"]
+
+[[scopes]]
+name = "cli"
+paths = ["src/cli/**"]
+
+[[deny-scope-dep]]
+name = "tracing-is-leaf"
+from = "tracing"
+to = ["error", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "tracing setup is a leaf; it must not know about any server machinery."
+
+[[deny-scope-dep]]
+name = "error-is-leaf"
+from = "error"
+to = ["tracing", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "PocError is the shared bottom; it must not depend on features or wiring."
+
+[[deny-scope-dep]]
+name = "links-below-features"
+from = "links"
+to = ["workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "the link stack is shared infrastructure below features; it must not reach the index, capabilities, or wiring."
+
+[[deny-scope-dep]]
+name = "workspace-below-features"
+from = "workspace"
+to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "the workspace index sits below features; it may reuse links but must not know capabilities or wiring."
+
+[[deny-scope-dep]]
+name = "hovers-are-siblings"
+from = "hovers"
+to = ["code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
+
+[[deny-scope-dep]]
+name = "code-actions-are-siblings"
+from = "code-actions"
+to = ["hovers", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
+
+[[deny-scope-dep]]
+name = "definitions-are-siblings"
+from = "definitions"
+to = ["hovers", "code-actions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
+
+[[deny-scope-dep]]
+name = "references-are-siblings"
+from = "references"
+to = ["hovers", "code-actions", "definitions", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
+
+[[deny-scope-dep]]
+name = "renames-are-siblings"
+from = "renames"
+to = ["hovers", "code-actions", "definitions", "references", "completions", "diagnostics", "symbols", "server", "cli"]
+message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
+
+[[deny-scope-dep]]
+name = "completions-are-siblings"
+from = "completions"
+to = ["hovers", "code-actions", "definitions", "references", "renames", "diagnostics", "symbols", "server", "cli"]
+message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
+
+[[deny-scope-dep]]
+name = "diagnostics-are-siblings"
+from = "diagnostics"
+to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "symbols", "server", "cli"]
+message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
+
+[[deny-scope-dep]]
+name = "symbols-are-siblings"
+from = "symbols"
+to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "server", "cli"]
+message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
+
+[[deny-scope-dep]]
+name = "server-below-cli"
+from = "server"
+to = ["cli"]
+message = "server.rs is the wiring layer below the CLI edge; it must not reach clap or the serve entry point."
