@@ -23,15 +23,46 @@ lto = true
 
 
 [workspace.lints.clippy]
-all = { level = "warn", priority = -1 }
-pedantic = { level = "warn", priority = -1 }
+all = { level = "deny", priority = -3 }
+# warn -> deny: CI already promotes warnings to errors via `-D warnings`;
+# these levels make local runs and the manifest explicit.
+cargo = { level = "deny", priority = -2 }
+pedantic = { level = "deny", priority = -1 }
 
-missing_errors_doc = "allow"
-missing_panics_doc = "allow"
-missing_fields_in_debug = "allow"
-module_name_repetitions = "allow"
-must_use_candidate = "allow"
-needless_pass_by_value = "allow"
-unwrap_used = "warn"
-expect_used = "warn"
+module_inception = { level = "allow", priority = 1 }
+module_name_repetitions = { level = "allow", priority = 1 }
+multiple_crate_versions = { level = "allow", priority = 1 }
+similar_names = { level = "allow", priority = 1 }
+unnecessary_wraps = { level = "allow", priority = 1 }
+
+# Restriction lints, measured at zero fires on this codebase.
+print_stdout = "warn"                # stdout is the protocol channel over stdio
+print_stderr = "warn"
 dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+mem_forget = "warn"
+exit = "warn"                        # a library must not kill the process
+undocumented_unsafe_blocks = "warn"  # crate is 100% safe code today
+multiple_unsafe_ops_per_block = "warn"
+allow_attributes_without_reason = "warn"  # encodes the suppression policy
+unwrap_in_result = "warn"
+panic_in_result_fn = "warn"
+verbose_file_reads = "warn"
+clone_on_ref_ptr = "warn"
+integer_division = "warn"
+error_impl_error = "warn"
+self_named_module_files = "warn"     # locks in the mod.rs layout
+
+# Fires today, adopted as explicit work items (see clippy.toml thresholds).
+str_to_string = "warn"
+cognitive_complexity = "warn"
+
+# Takes over arch-lint's no-unwrap-expect rule, test-aware via clippy.toml.
+expect_used = "deny"
+unwrap_used = "deny"
+
+
+[workspace.lints.rust]
+missing_docs = "deny"
+unsafe_code = "deny"
