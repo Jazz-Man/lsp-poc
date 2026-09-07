@@ -76,13 +76,14 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 [[package]]
 name = "async-language-server"
 version = "0.0.0"
-source = "git+https://github.com/Jazz-Man/async-language-server?rev=v0.0.1#d7795c4617d0d3f6554d6dcfd11bd6fa997582fa"
+source = "git+https://github.com/Jazz-Man/async-language-server?rev=v0.8.1#7b55f363f6bd0628cc788589291c38a239304cc6"
 dependencies = [
  "async-lsp",
  "dashmap",
  "futures",
  "globset",
  "ignore",
+ "lsp_macros",
  "ropey",
  "serde_json",
  "thiserror",
@@ -105,6 +106,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -144,12 +146,6 @@ dependencies = [
  "memchr",
  "serde_core",
 ]
-
-[[package]]
-name = "bytes"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "cc"
@@ -669,6 +665,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "lsp_macros"
+version = "0.1.0"
+source = "git+https://github.com/Jazz-Man/async-language-server?rev=v0.8.1#7b55f363f6bd0628cc788589291c38a239304cc6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1082,7 +1088,6 @@ version = "1.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
 dependencies = [
- "bytes",
  "libc",
  "mio",
  "pin-project-lite",
