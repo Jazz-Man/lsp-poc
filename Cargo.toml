@@ -17,6 +17,8 @@ publish = false
 async-language-server = { git = "https://github.com/Jazz-Man/async-language-server", rev = "v0.8.1", features = ["tree-sitter"] }
 tokio = { version = "1.53.1", features = ["rt","fs","macros"] }
 
+arch-lint = "=0.5.0"
+
 
 [profile.release]
 lto = true

@@ -18,7 +18,7 @@ anyhow = { version = "1.0.104" }
 async-language-server.workspace = true
 clap = { version = "4.6.6", features = ["derive","env"] }
 tokio.workspace = true
-# tracing = "0.1.44"
+tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23" , features = ["env-filter"] }
 tree-sitter-md = { version = "0.5.3", features = ["parser"] }
 
@@ -26,6 +26,9 @@ tree-sitter-md = { version = "0.5.3", features = ["parser"] }
 [lints]
 workspace = true
 
+
+[dev-dependencies]
+arch-lint = { workspace = true }
 
 [profile.release]
 opt-level = 3
