@@ -1,3 +1,6 @@
+//! Proof-of-concept Markdown language server over the LSP protocol, built on
+//! the owner's `async-language-server` fork and served over stdio.
+
 mod cli;
 mod hovers;
 mod server;
