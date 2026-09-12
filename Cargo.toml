@@ -14,14 +14,21 @@ publish = false
 
 
 [workspace.dependencies]
-async-language-server = { git = "https://github.com/Jazz-Man/async-language-server", rev = "v0.10.0", features = ["tree-sitter"] }
 tokio = { version = "1.53.1", features = ["rt","fs","macros"] }
 
 arch-lint = "=0.5.0"
 
 
+# Consolidated from crates/lsp-poc (owner call 2026-09-12): cargo applies
+# profiles only from the workspace root. Zed launches the debug binary; this
+# profile exists for release builds of the server.
 [profile.release]
-lto = true
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+overflow-checks = false
 
 
 [workspace.lints.clippy]
@@ -68,3 +75,4 @@ unwrap_used = "deny"
 [workspace.lints.rust]
 missing_docs = "deny"
 unsafe_code = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(dylint_lib, values(any()))"] }

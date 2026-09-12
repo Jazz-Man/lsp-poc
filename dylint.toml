@@ -1,0 +1,64 @@
+# Dylint configuration: library discovery + per-library config.
+# Docs: https://github.com/trailofbits/dylint#workspace-metadata
+
+[workspace.metadata.dylint]
+libraries = [
+    # Third-party style suite (owner decision 2026-09-08: adopt instead of
+    # maintaining custom lints). Pinned rc tag — master-HEAD would move under
+    # us; bump deliberately, like the ToB tag below.
+    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.22" },
+    { git = "https://github.com/trailofbits/dylint", tag = "v6.0.4", pattern = [
+        # `non_thread_safe_call_in_test` (dropped from v6.0.4 `general`): it
+        # flags every `std::fs` call in tests, but real temp workspaces on disk
+        # are the test convention this repo is adopting — the fires are by
+        # design, so the lint is dropped, not silenced.
+        "examples/general/abs_home_path",
+        "examples/general/await_holding_span_guard",
+        "examples/general/basic_dead_store",
+        "examples/general/crate_wide_allow",
+        "examples/general/incorrect_matches_operation",
+        "examples/general/non_local_effect_before_unhandled_error",
+        "examples/general/wrong_serialize_struct_arg",
+        "examples/supplementary",
+        # `assert_eq_arg_misordering` (dropped, v6.0.4 restriction): it
+        # demands const-first `assert_eq!` arguments, against the actual-first
+        # convention this codebase and the wider Rust ecosystem follow.
+        "examples/restriction/collapsible_unwrap",
+        "examples/restriction/misleading_variable_name",
+    ] },
+]
+
+# Per-library lint configuration: keyed by library name, then lint name.
+# Perfectionist rules that fight this repo's own conventions are disabled
+# with reasons below — see CONFIGURATION.md in the perfectionist repo for
+# the knob names. Unknown rule names are silently ignored by the library;
+# all entries here are verified rule names.
+
+[perfectionist]
+disable = [
+    # Prescribes `derive_more::{Display, Error}` and bans thiserror;
+    # `.claude/rules/error-handling.md` mandates thiserror for this crate
+    # (PocError). The two suites prescribe opposite error-derive policies,
+    # and ours wins here.
+    "thiserror_usage",
+    # Wants inline test code extracted to separate files; the testing
+    # convention this repo is adopting mandates inline `#[cfg(test)] mod
+    # tests` (or sibling `tests.rs`) per module — the steering round will
+    # codify it.
+    "excessive_inline_tests",
+    # Flags `T`/`E`/`F`-style generic parameters. Single-letter generics are
+    # the Rust ecosystem idiom (`Result<T, E>`, `HashMap<K, V>`); renaming
+    # them degrades the code. Distinct from the single-letter closure/const
+    # rules, which we keep and fix: local bindings gain clarity from
+    # descriptive names, canonical generics do not.
+    "single_letter_generic",
+]
+
+# `impure_macro_arguments` stays active — no fires in this repo yet. The
+# exemption below covers only the quote-family token DSL: the rule's
+# own docs put curly-brace DSL bodies (`quote! { ... }`) out of scope —
+# "the evaluation contract is the macro's, not the call site's" — and
+# `parse_quote!`/`quote!` with parentheses hit the same DSL through the
+# paren form; their arguments are quoted tokens, never evaluated.
+["perfectionist::impure_macro_arguments"]
+ignore = ["quote", "parse_quote"]

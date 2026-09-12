@@ -1,15 +1,30 @@
 //! Architecture checks via `arch-lint`, wired programmatically.
+//!
+//! The `check!()` macro path applies preset defaults only: behavior knobs
+//! (complexity thresholds, `allow_in_tests`, ...) configured in `[rules.*]`
+//! TOML sections are parsed but never consulted. Building the analyzer here
+//! makes the wiring explicit and every knob real, keeps `arch-lint` a
+//! dev-dependency, and still loads the declarative layer rules from
+//! `arch-lint.toml` (scopes and `deny-scope-dep`).
+//!
+//! Rule choices:
+//! - `no-unwrap-expect` stays off: clippy's `expect_used`/`unwrap_used`
+//!   (deny, test-aware via clippy.toml) own that axis, with self-verifying
+//!   `#[expect(..., reason)]` suppressions.
+//! - `handler-complexity` is excluded: it only measures functions named
+//!   `handle_*`/`process_*`/`on_*`/`update*`, while clippy's
+//!   `cognitive_complexity` and `too_many_lines` thresholds (clippy.toml)
+//!   already cover every function in the crate.
+//! - Per-site suppressions use the comment form with a mandatory reason.
 
 use std::path::Path;
 
-use arch_lint::{
-    Analyzer, RuleBox, Severity,
-    declarative::load_rules_from_toml,
-    rules::{
-        NoErrorSwallowing, NoSilentResultDrop, NoSyncIo, RequireThiserror, RequireTracing,
-        TracingEnvInit,
-    },
+use arch_lint::declarative::load_rules_from_toml;
+use arch_lint::rules::{
+    NoErrorSwallowing, NoSilentResultDrop, NoSyncIo, RequireThiserror, RequireTracing,
+    TracingEnvInit,
 };
+use arch_lint::{Analyzer, RuleBox, Severity};
 
 #[test]
 fn architecture_rules_hold() {
@@ -24,6 +39,10 @@ fn architecture_rules_hold() {
         Box::new(TracingEnvInit::new()),
     ];
 
+    // Only build output is excluded: arch-lint scans `src/` and `tests/` of
+    // this crate; `vendors/` lies outside the crate root, and the lint suites
+    // in `dylint.toml` are external git dependencies — there is no nested
+    // workspace in this tree for the scan to fence off.
     let mut builder = Analyzer::builder().root(root).exclude("**/target/**");
     for rule in rules {
         builder = builder.rule_box(rule);
@@ -37,11 +56,11 @@ fn architecture_rules_hold() {
     }
 
     let analyzer = builder.build().expect("analyzer builds");
-    let result = analyzer.analyze().expect("analysis completes");
+    let analysis = analyzer.analyze().expect("analysis completes");
 
     assert!(
-        !result.has_violations_at(Severity::Error),
+        !analysis.has_violations_at(Severity::Error),
         "{}",
-        result.format_test_report(Severity::Error)
+        analysis.format_test_report(Severity::Error),
     );
 }

@@ -2,7 +2,7 @@
 #
 # IMPORTANT: do NOT set RUSTFLAGS here. We deliberately share `target/` with
 # rust-analyzer (the project is run often via `cargo run`, so the dir stays warm
-# and rust-analyzer reuses the already-built ~800-crate servo tree instead of
+# and rust-analyzer reuses the already-built dependency tree instead of
 # recompiling it a second time). Any RUSTFLAGS divergence between this file and a
 # plain `cargo run` would change the metadata hash and force a full recompile of
 # the whole dep tree — the single biggest responsiveness killer on a workspace
@@ -14,7 +14,7 @@
 # dir and stops fighting the CLI.
 
 [build]
-# The servo dep tree is memory-heavy to compile in parallel. If `cargo build`
+# The dep tree is memory-heavy to compile in parallel. If `cargo build`
 # OOM-kills or makes the machine unresponsive, cap parallelism:
 # jobs = 8
 
@@ -23,14 +23,10 @@
 # keeps agent/CI terminal output (and token burn) minimal.
 lint = "clippy --workspace --all-targets --message-format=short"
 
-# rustfmt scoped to OUR packages. `cargo fmt --all` walks every package in
-# the cargo-metadata graph — including the vendored path deps (wreq,
-# wreq-util) — and reads THEIR rustfmt.toml, whose nightly-only options emit
-# 164 warnings on stable (and could reformat vendors). The -p forms touch
-# only workspace members (verified: 0 warnings).
-fmtcheck = "fmt -p lsp-poc -p zed-md-lsp --check"
-fmtall = "fmt -p lsp-poc -p zed-md-lsp"
-
 [env]
 # Uncomment to inspect exactly which config rust-analyzer applies on startup:
 RA_DISABLE_INCREMENTAL_SYNC = "0"
+
+# Miri interpreter flags for `make miri`. MIRIFLAGS is the interpreter's env
+# var, not RUSTFLAGS — the shared-target invariant above is untouched.
+MIRIFLAGS = "-Zmiri-backtrace=full -Zmiri-disable-isolation"

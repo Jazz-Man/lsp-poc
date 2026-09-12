@@ -1,12 +1,12 @@
 use std::future::{Future, ready};
 
-use async_language_server::{
-    lsp_types::{
-        ClientCapabilities, Hover, HoverContents, HoverParams, HoverProviderCapability,
-        MarkupContent, MarkupKind, ServerCapabilities, ServerInfo,
-    },
-    server::{DocumentMatcher, Server, ServerResult, ServerState},
-    tree_sitter_utils::{ts_range_contains_lsp_position, ts_range_to_lsp_range},
+use async_language_server::lsp_types::{
+    ClientCapabilities, Hover, HoverContents, HoverParams, HoverProviderCapability, MarkupContent,
+    MarkupKind, ServerCapabilities, ServerInfo,
+};
+use async_language_server::server::{DocumentMatcher, Server, ServerResult, ServerState};
+use async_language_server::tree_sitter_utils::{
+    ts_range_contains_lsp_position, ts_range_to_lsp_range,
 };
 
 #[derive(Debug, Clone)]

@@ -29,4 +29,13 @@ impl zed::Extension for LspPocExtension {
     }
 }
 
-zed::register_extension!(LspPocExtension);
+// zed's register_extension! expands to a pub extern "C" `init-extension`
+// guest export (plus wasi-gated glue). The private module keeps that
+// macro-generated item out of this crate's public API surface — the docs
+// gate then has nothing to fire on — while the linker-level export_name is
+// unaffected by the Rust-side module path.
+mod register {
+    use super::LspPocExtension;
+
+    super::zed::register_extension!(LspPocExtension);
+}
