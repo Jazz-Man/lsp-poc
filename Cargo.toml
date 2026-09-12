@@ -63,7 +63,8 @@ integer_division = "warn"
 error_impl_error = "warn"
 self_named_module_files = "warn"     # locks in the mod.rs layout
 
-# Fires today, adopted as explicit work items (see clippy.toml thresholds).
+# Carried from the fork as explicit work items; zero fires in this tree so
+# far — tripwires only. Promote or drop at a lint review.
 str_to_string = "warn"
 cognitive_complexity = "warn"
 

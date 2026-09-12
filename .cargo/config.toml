@@ -24,7 +24,8 @@
 lint = "clippy --workspace --all-targets --message-format=short"
 
 [env]
-# Uncomment to inspect exactly which config rust-analyzer applies on startup:
+# RA sync debug knob: "0" leaves incremental sync on; flip to "1" to freeze it
+# while inspecting which config rust-analyzer applies on startup.
 RA_DISABLE_INCREMENTAL_SYNC = "0"
 
 # Miri interpreter flags for `make miri`. MIRIFLAGS is the interpreter's env

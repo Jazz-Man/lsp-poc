@@ -37,11 +37,12 @@ Errors found by running the battery:
      hashbrown (three versions: 0.14.5 via dashmap 6.2.1, 0.15.5 via wasmparser ←
      wit-bindgen ← `zed_extension_api` — a side the fork does not have, 0.17.1 via
      indexmap), syn (2.0.119 / 3.0.4), windows-sys (0.59.0 via waitpid-any / 0.61.2).
-     Plus one `wildcard` / `bug[unresolved-workspace-dependency]` on
-     `async-language-server.workspace = true`: cargo-deny cannot resolve a git
-     dependency inherited through workspace dependency inheritance and classifies it as
-     a wildcard. `tokio.workspace` and `arch-lint.workspace` resolve fine (they carry
-     versions).
+     Plus one `wildcard` on `async-language-server.workspace = true`: the `wildcards`
+     lint flags any dependency that resolves without a version, and a git dep carries
+     none — so the finding is permanent by design, not an inheritance artifact.
+     `tokio.workspace` and `arch-lint.workspace` resolve fine (they carry versions).
+     (Corrected 2026-09-12: the original text blamed workspace inheritance — only the
+     sibling `bug[unresolved-workspace-dependency]` came from that.)
 3. **`warning: profiles for the non root package will be ignored`** on every cargo
    command: root `Cargo.toml` now has `[profile.release] lto = true`, while
    `crates/lsp-poc/Cargo.toml` still carries an ignored fat profile (opt-level 3,
@@ -94,8 +95,10 @@ verified empirically: `cargo dylint list` in the fork resolves all 11 libraries
    `async-language-server.workspace = true` with the direct declaration
    `{ git = "https://github.com/Jazz-Man/async-language-server", rev = "v0.10.0", features = ["tree-sitter"] }`
    and drop the `async-language-server` entry from `[workspace.dependencies]` (single
-   consumer; the pin lives in exactly one place). This removes the deny `wildcard` at
-   its root.
+   consumer; the pin lives in exactly one place). This removes
+   `bug[unresolved-workspace-dependency]` at its root; the `wildcards` lint still
+   flags the version-less git dep — permanent by design, owner-ratified red
+   (2026-09-12, documented in `deny.toml`). (Corrected 2026-09-12.)
 4. Root `Cargo.toml`, `[workspace.lints.rust]` — add the fork's
    `unexpected_cfgs = { level = "warn", check-cfg = ["cfg(dylint_lib, values(any()))"] }`
    (dylint runs set `cfg(dylint_lib)`; without the check-cfg the compiler warns).
