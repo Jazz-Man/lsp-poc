@@ -1,3 +1,5 @@
+use std::future::{Future, ready};
+
 use async_language_server::{
     lsp_types::{
         ClientCapabilities, Hover, HoverContents, HoverParams, HoverProviderCapability,
@@ -25,8 +27,8 @@ impl Default for PocLanguageServer {
 impl Server for PocLanguageServer {
     fn server_info() -> Option<ServerInfo> {
         Some(ServerInfo {
-            name: env!("CARGO_PKG_NAME").to_string(),
-            version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            name: env!("CARGO_PKG_NAME").to_owned(),
+            version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         })
     }
 
@@ -47,31 +49,39 @@ impl Server for PocLanguageServer {
         ]
     }
 
-    async fn hover(&self, state: ServerState, params: HoverParams) -> ServerResult<Option<Hover>> {
-        let url = params.text_document_position_params.text_document.uri;
-        let pos = params.text_document_position_params.position;
-
-        let Some(doc) = state.document(&url) else {
-            return Ok(None);
-        };
-
-        let Some(node) = doc.node_at_position_named(pos) else {
-            tracing::debug!("Missing node for hover at {}:{}", pos.line, pos.character);
-            return Ok(None);
-        };
-
-        if !ts_range_contains_lsp_position(node.range(), pos) {
-            return Ok(None);
-        }
-
-        tracing::debug!("Getting hover for node at {}:{}", pos.line, pos.character);
-
-        Ok(Some(Hover {
-            contents: HoverContents::Markup(MarkupContent {
-                kind: MarkupKind::Markdown,
-                value: "```json\n".to_string() + &node.to_string() + "\n```",
-            }),
-            range: Some(ts_range_to_lsp_range(node.range())),
-        }))
+    fn hover(
+        &self,
+        state: ServerState,
+        params: HoverParams,
+    ) -> impl Future<Output = ServerResult<Option<Hover>>> + Send {
+        ready(hover(&state, params))
     }
+}
+
+fn hover(state: &ServerState, params: HoverParams) -> ServerResult<Option<Hover>> {
+    let url = params.text_document_position_params.text_document.uri;
+    let pos = params.text_document_position_params.position;
+
+    let Some(doc) = state.document(&url) else {
+        return Ok(None);
+    };
+
+    let Some(node) = doc.node_at_position_named(pos) else {
+        tracing::debug!("Missing node for hover at {}:{}", pos.line, pos.character);
+        return Ok(None);
+    };
+
+    if !ts_range_contains_lsp_position(node.range(), pos) {
+        return Ok(None);
+    }
+
+    tracing::debug!("Getting hover for node at {}:{}", pos.line, pos.character);
+
+    Ok(Some(Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: "```json\n".to_owned() + &node.to_string() + "\n```",
+        }),
+        range: Some(ts_range_to_lsp_range(node.range())),
+    }))
 }
