@@ -73,8 +73,14 @@ mutants:
 ## the battery. No --no-default-features leg: this crate has no features yet.
 # architecture_rules_hold is excluded by name: its workspace-wide fs walk does
 # not terminate under the interpreter (fork observed >1h) — infeasible, not failing.
+# That exclusion empties the run today — the workspace's only test is the
+# excluded one — and nextest's --no-tests default (auto) treats zero matches
+# as an error. --no-tests=warn states the real contract: an empty run is a
+# visible success, not a failure. Canary: if this warning ever fires, either
+# every test became miri-excluded or the -E filter stopped matching — check
+# the exclusion name before dismissing it.
 miri:
-	@$(CARGO_BIN) +$(MIRI_TOOLCHAIN) miri nextest run --target $(TARGET) -E 'not(test(architecture_rules_hold))'
+	@$(CARGO_BIN) +$(MIRI_TOOLCHAIN) miri nextest run --target $(TARGET) --no-tests=warn -E 'not(test(architecture_rules_hold))'
 
 ## miri-setup: one-time toolchain preparation for make miri
 miri-setup:
