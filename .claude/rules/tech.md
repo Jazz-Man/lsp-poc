@@ -1,58 +1,81 @@
-# Technology Stack
+# Technology
 
-## Architecture
+## Toolchain
 
-One Rust workspace producing two artifacts: a native LSP server binary (`lsp-poc`) and a wasm Zed extension that launches it. The server owns all logic; the extension is a thin launcher. The structure rule covers how the pieces connect.
+Keep the workspace on Rust edition 2024, pinned to the `stable` channel by
+`rust-toolchain.toml` (components: `rustfmt`, `clippy`) — do not bypass the pin.
+Run tokio in `current_thread` flavor (`crates/lsp-poc/src/main.rs`); upgrade
+dated pins (miri's `MIRI_TOOLCHAIN` in the Makefile) deliberately, never casually.
 
-## Core Technologies
+## Stack
 
-- **Language**: Rust, edition 2024 workspace-wide, stable channel pinned in `rust-toolchain.toml` (components: `rustfmt`, `clippy`).
-- **Framework**: `async-language-server` — a git dependency pinned to rev `v0.0.1`, with features `tracing` and `tree-sitter`. It owns the JSON-RPC message loop, the document store, and tree-sitter parsing. Use its re-exports (`lsp_types`, `tree_sitter`, `tree_sitter_utils`) instead of adding those crates directly.
-- **Runtime**: tokio, `current_thread` flavor (`crates/lsp-poc/src/main.rs`).
-- **CLI**: clap derive, currently the single `serve` subcommand (`--socket` is parsed but unused).
-- **Grammar**: `tree-sitter-json`.
-- **Editor side**: `zed_extension_api`, as the wasm `cdylib` in the extension crate.
+`async-language-server` — a direct dependency of `crates/lsp-poc`, git rev
+`v0.10.0`, with the `tree-sitter` feature — owns the JSON-RPC loop, the
+document store, and tree-sitter parsing. Use its re-exports (`lsp_types`,
+`tree_sitter`, `tree_sitter_utils`) instead of adding those crates directly.
+`serve(server)` serves over stdio; the single `serve` subcommand parses its
+flags but never reads them. The Markdown document matcher's grammar is
+`tree-sitter-md`. The workspace declares no `[features]` section yet — add a
+no-default-features test leg together with the first feature. The Zed
+extension (`zed_extension_api`, wasm `cdylib`) is a launcher only: it spawns
+`target/debug/lsp-poc serve --stdio`; the tuned `[profile.release]` at the
+workspace root is for release builds — ignore it day-to-day.
 
-## Development Standards
+## Verification battery
 
-### Code Quality
+The Makefile is the command contract (`make help` is authoritative); it routes
+cargo through `rtk` locally and plain `cargo` when `CI` is set. `make battery`
+chains the gates `fmt`, `clippy`, `doc`, `test`, `dylint`:
 
-Run `cargo lint` (alias for `clippy --workspace --all-targets --message-format=short`) before calling work done.
+- `fmt` checks formatting (`fmt-fix` applies); `clippy` lints every target
+  with warnings as errors.
+- `doc` builds `+nightly cargo doc --workspace --no-deps` with warnings as
+  errors (the index-page flags need nightly).
+- `test` runs `cargo nextest run --workspace` — today, the single arch-lint
+  test (`crates/lsp-poc/tests/architecture.rs`, declarative layers in
+  `crates/lsp-poc/arch-lint.toml`); `cargo nextest run <filter>` runs one test.
+  No doctest leg: no doctestable `[lib]` target exists.
+- `dylint` runs the external lint suites (see Lints).
 
-Workspace clippy gates live in the root `Cargo.toml`: `all` and `pedantic` at warn, plus `unwrap_used`, `expect_used`, and `dbg_macro` at warn. Never write `.unwrap()`, `.expect()`, or `dbg!()`. Propagate errors through the crate's typed error (`PocError`, see error-handling.md) inside server code, through `anyhow::Result` at the CLI edge; use let-else for absent values, the way `hover()` in `crates/lsp-poc/src/server.rs` does:
+On demand: `make dupes` (`dupes.toml` tolerates zero duplicate groups;
+deliberate ones get a reasoned `.dupes-ignore.toml` entry) and `make deny`
+(`deny.toml`: deny-level findings gate, warnings advise). Never gates, never
+in the battery: `make mutants` (a diagnostic sweep — `FILE=<path>` scopes it,
+exit 2 means survivors, run it alone) and `make miri` (one-time `make
+miri-setup`; pinned toolchain, `x86_64-apple-darwin` target, arch-lint test
+excluded by name, `--no-tests=warn` — rationale and canary live in the
+Makefile). A failing check is a signal about the code: investigate it per the
+global `no-workarounds` process — never make a check pass by suppressing it.
 
-```rust
-let Some(doc) = state.document(&url) else { return Ok(None) };
-```
+## Lints
 
-### Formatting
+Set lint levels in the root `Cargo.toml`, not source attributes: clippy `all`,
+`cargo`, `pedantic` at deny, with five inherited allow entries — do not add
+new ones; `unwrap_used`/`expect_used` at deny, test-aware via `clippy.toml`
+(which also holds the complexity thresholds); the restriction set, `dbg_macro`
+among them, at warn; `missing_docs` and `unsafe_code` at deny;
+`unexpected_cfgs` whitelists dylint's `cfg(dylint_lib)`. The dylint suites
+(tag-pinned Trail of Bits examples, rc-pinned `perfectionist`) are pinned in
+`dylint.toml` alongside the reasoned disables; after any tag bump, re-verify
+the `[perfectionist]` entries still name real rules — unknown names silently
+vanish.
 
-Check with `cargo fmt --all --check`; fix with `cargo fmt --all`. Do not use the `fmtcheck`/`fmtall` aliases from `.cargo/config.toml` — they pass `-p zed-md-lsp`, but the package is named `zed-lsp-poc`, so both aliases fail.
+## Logging
 
-### Testing
+Log with `tracing` macros only; never print to stdout — it is the LSP transport.
+`crates/lsp-poc/src/tracing.rs` writes everything to stderr; `RUST_LOG` wins
+when set, otherwise `debug` in debug builds and `info` in release.
 
-No tests exist yet. When they appear, run a single one with `cargo test -p lsp-poc <test_name>`.
+## Key technical decisions
 
-## Logging Constraints
-
-Log with `tracing` macros only, and never print to stdout — stdout is the LSP transport, and `crates/lsp-poc/src/tracing.rs` wires all output to stderr. Control verbosity with `RUST_LOG`; defaults are DEBUG in debug builds, INFO in release.
-
-## Common Commands
-
-```bash
-cargo build                          # rebuild after server changes — the extension launches target/debug/lsp-poc
-cargo run -p lsp-poc -- serve        # run the server standalone over stdio
-cargo lint                           # clippy across the workspace, short output
-cargo fmt --all --check              # format gate
-cargo test -p lsp-poc <test_name>    # once tests exist
-```
-
-## Key Technical Decisions
-
-- **No hand-rolled JSON-RPC.** `serve(Transport::Stdio, server)` in `crates/lsp-poc/src/cli/serve.rs` runs the entire message loop. Implement capabilities through the `Server` trait; never touch the transport.
-- **Treat a rev bump as a deliberate experiment.** After any bump, re-check the `Server` trait surface, because the pinned crate can change shape between tags.
-- **Do not set `RUSTFLAGS` in `.cargo/config.toml`.** The shared `target/` is deliberately kept warm for rust-analyzer, and flag divergence forces a full rebuild of the large dependency tree. If builds OOM, uncomment `jobs = 8` there instead.
-- **Ignore the tuned release profile (fat LTO, `panic = "abort"`, strip) in day-to-day work** — Zed launches the debug binary.
+- Implement capabilities through the `Server` trait; never touch the transport.
+- Treat an `async-language-server` rev bump as a deliberate experiment:
+  re-check the `Server` trait surface — the pinned crate changes shape
+  between tags.
+- Do not set `RUSTFLAGS` in `.cargo/config.toml`: `target/` is shared with
+  rust-analyzer, and flag divergence forces a full dep-tree rebuild. If builds
+  OOM, uncomment `jobs = 8` there; its `[alias] lint` gives short clippy output.
 
 ---
-_Document the stack's fixed constraints and gates, not every dependency; new crates that fit these patterns should not require updating this rule._
+_Use the pinned toolchain and let the Makefile verify the tree — failures are
+investigated, never suppressed._
