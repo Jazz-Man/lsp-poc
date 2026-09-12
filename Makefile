@@ -34,15 +34,15 @@ fmt:
 fmt-fix:
 	@$(CARGO_BIN) fmt --all
 
-## clippy: lint every target, warnings are errors (gate)
+## clippy: lint every target, warnings as errors (gate)
 clippy:
 	@$(CARGO_BIN) clippy --workspace --all-targets -- -D warnings
 
-## doc: build docs, doc warnings are errors (gate)
+## doc: build docs, warnings as errors (gate)
 doc:
 	@RUSTDOCFLAGS="--enable-index-page -Zunstable-options -D warnings" $(CARGO_BIN) +nightly doc --workspace --no-deps
 
-## test: nextest leg (gate)
+## test: nextest run (gate)
 # No doctest leg: cargo test --doc errors on this workspace today (lsp-poc is
 # bin-only, zed-lsp-poc is a cdylib — no library targets to run doctests for).
 # Add the leg back together with the first [lib] target, as in the fork.
@@ -53,24 +53,28 @@ test:
 dylint:
 	@$(CARGO_BIN) dylint --all -- --all-targets
 
-## battery: the full pre-done gate (CI parity)
+## battery: the full pre-done gate
 battery: fmt clippy doc test dylint
 
-## dupes: duplication gate (on demand)
+## dupes: duplication check (on demand)
 dupes:
 	@$(CARGO_BIN) dupes check
 
-## deny: dependency policies — advisories, duplicate bans, licenses, sources (on demand; deny-level findings gate)
+## deny: dependency policies (on demand; findings gate)
 deny:
 	@$(CARGO_BIN) deny check
 
-## mutants: mutation-testing sweep (on demand, heavy; run it alone — a concurrent build poisons its auto-derived per-scenario timeout). Optional FILE=crates/lsp-poc/src/foo.rs scopes the sweep to one file. Exit code 2 means survivors were found: this is a diagnostic sweep, not a gate — the battery never runs it.
+# Diagnostic sweep, never a gate; the battery never runs it. Heavy: run it
+# alone — a concurrent build poisons its auto-derived per-scenario timeout.
+# Exit code 2 means survivors were found. FILE=crates/lsp-poc/src/foo.rs
+# scopes the sweep to one file.
+## mutants: mutation-testing sweep (diagnostic, never a gate)
 mutants:
 	@$(CARGO_BIN) mutants $(if $(FILE),-f $(FILE))
 
-## miri: UB interpreter, cross-interpreted for x86_64 (ropey/str_indices NEON
-## paths are not interpretable on an aarch64 host); on demand, slow — never in
-## the battery. No --no-default-features leg: this crate has no features yet.
+## miri: UB interpreter over the tests (on demand, slow)
+# Never in the battery; no --no-default-features leg (no [features] yet —
+# added with the first feature).
 # architecture_rules_hold is excluded by name: its workspace-wide fs walk does
 # not terminate under the interpreter (fork observed >1h) — infeasible, not failing.
 # That exclusion empties the run today — the workspace's only test is the
