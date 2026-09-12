@@ -53,12 +53,3 @@ disable = [
     # descriptive names, canonical generics do not.
     "single_letter_generic",
 ]
-
-# `impure_macro_arguments` stays active — no fires in this repo yet. The
-# exemption below covers only the quote-family token DSL: the rule's
-# own docs put curly-brace DSL bodies (`quote! { ... }`) out of scope —
-# "the evaluation contract is the macro's, not the call site's" — and
-# `parse_quote!`/`quote!` with parentheses hit the same DSL through the
-# paren form; their arguments are quoted tokens, never evaluated.
-["perfectionist::impure_macro_arguments"]
-ignore = ["quote", "parse_quote"]
