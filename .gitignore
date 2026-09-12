@@ -11,3 +11,7 @@ target/*
 
 extension.wasm
 crates/**/target/
+
+# Read-only reference tree (upstream md-lsp), not part of the workspace; kept
+# untracked so cargo's VCS guards (e.g. cargo fix) see a clean tree.
+vendors/
