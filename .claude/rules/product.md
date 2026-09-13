@@ -24,7 +24,7 @@ Optimize for learning value over robustness. Prefer the smallest change that dem
 
 Grow the server capability-by-capability. Treat each LSP capability as one self-contained experiment: advertise it, implement it, verify it live in Zed, then move to the next. Do not start three capabilities in parallel — the point of a POC is to see one mechanism clearly.
 
-Keep Markdown as the boundary. A capability that needs another language's grammar or cross-file analysis is out of scope for this project.
+Keep Markdown as the boundary. A capability that needs another language's grammar is out of scope for this project; cross-file Markdown-to-Markdown analysis (workspace links) is in scope by owner decision (2026-09-13, cycle-1 spec).
 
 Judge results by "does the mechanism work," not by user-facing polish. A hover that returns the raw tree-sitter node in a fenced `json` block is a successful hover here.
 
@@ -32,7 +32,7 @@ When a change is ambiguous, ask the owner — the single user of this software i
 
 ## Target Use Cases
 
-- Live experiments against real Markdown files open in Zed (currently: hover).
+- Live experiments against real Markdown files open in Zed (currently: hover, diagnostics).
 - A sandbox for the `async-language-server` API under a pinned rev.
 - A harness for the Zed-extension ↔ native-binary interplay.
 

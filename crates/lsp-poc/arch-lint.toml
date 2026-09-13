@@ -20,8 +20,10 @@
 # never import each other: shared logic goes into links/workspace, wiring
 # stays in server.rs. server.rs is the single Server impl; main.rs owns the
 # serve() call at the process edge. Scopes for modules that the feature
-# spec has not landed yet (error, links, workspace, most capabilities) are
-# declared up front so the layering guards the structure as it grows.
+# spec has not landed yet (error and the remaining capability scopes) are
+# declared up front so the layering guards the structure as it grows;
+# links, workspace, and diagnostics landed with the 2026-09-13 cycle-1
+# spec (docs/superpowers/specs/2026-09-13-md-capabilities-cycle1-diagnostics-design.md).
 # src/utils.rs is deliberately unscoped: it is an undeclared PHP-era leftover
 # pending an owner decision, outside the layer stack.
 
