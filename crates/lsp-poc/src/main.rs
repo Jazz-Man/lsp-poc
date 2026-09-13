@@ -5,6 +5,7 @@ mod hovers;
 mod links;
 mod server;
 mod tracing;
+mod workspace;
 
 use self::tracing::setup_tracing;
 use crate::server::PocLanguageServer;

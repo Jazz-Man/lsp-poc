@@ -1034,6 +1034,15 @@ Expected: 3 passed.
 Run: `make fmt-fix && make fmt && make clippy && make test`
 Expected: exit 0 across all four.
 
+> **(Corrected 2026-09-13 during execution — the Step 1/3 code as written needed these deltas; all ratified, none blocked.)**
+> (1) top-level import must be `use crate::links::{self, Target};` — `resolve()` matches bare `Target::…`;
+> (2) `MarkdownParser` has no `Debug` impl, so `Index` takes a manual `std::fmt::Debug` (prints `cache` + `root`, `finish_non_exhaustive()`);
+> (3) `root_for`'s cached read is `if let Some(root) = &*root { return Some(root.clone()); }` — a bare `*root` pattern moves out of the `MutexGuard`;
+> (4–5) two nested `if let`s became edition-2024 let-chains (clippy `collapsible_if`);
+> (6) `wiki_candidates` uses `Path::new(path).extension().is_some_and(|ext| ext.eq_ignore_ascii_case("md"))` — **behavior-changing by the lint's design**: `Note.MD` now counts as already suffixed instead of gaining a `.md` candidate; controller-ratified;
+> (7) test `open` closure clones via `Arc::<links::MdIndex>::clone(&open_index)` (clippy `clone_on_ref_ptr`);
+> plus 10 `no-sync-io` allow comments — `NoSyncIo` also flags `Path::exists()` in `git_root` and every `#[cfg(test)]` temp-dir fixture call, and the comment must sit on the line immediately preceding the violating token.
+
 ---
 
 ### Task 3: `src/diagnostics/` — broken-link diagnostics (codes 1–6)
