@@ -17,31 +17,59 @@
 - Sync `std::fs` calls in `src/` trip the arch-lint `NoSyncIo` rule: each site needs `// arch-lint: allow(no-sync-io) reason="..."` (the framework's own code does exactly this).
 - Notification hooks are synchronous by protocol necessity ("may not await and must not panic") — no `.await`, no `panic!`/`unwrap`/`expect` in hooks; `unwrap`/`expect` exist only in `#[cfg(test)]` code (clippy gates are test-aware via `clippy.toml`).
 - Positions are UTF-8 at the trait boundary; convert tree-sitter ranges only via `async_language_server::tree_sitter_utils::ts_range_to_lsp_range`.
-- No `as` casts for narrowing conversions (clippy pedantic denies them); use `TryFrom`/`usize` arithmetic (tree-sitter `Range`/`Point` are `usize`-based; `ts_range_to_lsp_range` handles the `u32` edge).
+- No `as` casts for narrowing conversions (clippy pedantic denies them); tree-sitter `Range`/`Point` are `usize`-based and `ts_range_to_lsp_range` handles the `u32` edge.
 - Surgical: the existing `hover` stays byte-identical; the Zed extension crate is untouched; `arch-lint.toml` scopes stay untouched (only the header comment is refreshed in Task 5).
 - Rust work follows the `rust-skills` skill rules (err-\*, own-\*, pat-let-else, api-must-use, obs-structured-fields, test-cfg-test-module).
+- Test documents are real files under `crates/lsp-poc/tests/fixtures/` (owner request, 2026-09-13) so later cycles reuse them; single-line micro-cases stay inline. Tests read them via `env!("CARGO_MANIFEST_DIR")` — each read site carries the `NoSyncIo` allow comment.
 - Every task ends with `make fmt-fix && make fmt && make clippy && make test` green (called "the task gates").
+
+### Model facts the tasks rely on (verified against tree-sitter-md 0.5.3 during planning)
+
+- `MarkdownParser::default()` + `parse(text: &[u8], old_tree: Option<&MarkdownTree>) -> Option<MarkdownTree>`; `MarkdownTree::block_tree()` and `inline_trees()`. Inline trees are parsed via `set_included_ranges` with **absolute document coordinates** — every node's `range()` is a document range, no offset math.
+- The grammars have **no footnote and no wikilink nodes**. Two consequences the model handles:
+  - `[^1]: footnote text` is valid CommonMark link-reference-definition syntax, so the block grammar may parse it as `link_reference_definition` with label `^1` — footnote definitions are therefore detected in **both** places (definition nodes with `^`-labels, and paragraph-first-inline as fallback). Exactly one of the two applies per occurrence, so no duplicates.
+  - `[^1]` and `[[Other]]` may surface inside `shortcut_link`/`collapsed_reference_link` nodes; a guard in `collect_inline` keeps those shapes out of `references` (they belong to the off-tree scan).
+- Off-tree scanning runs over each inline tree's root text; wikilink ranges are rebuilt with byte-accurate `scan_range` (columns are bytes, tree-sitter's convention).
 
 ---
 
 ### Task 1: `src/links/` — pure Markdown link model
 
 **Files:**
+- Create: `crates/lsp-poc/tests/fixtures/links-fixture.md`
 - Create: `crates/lsp-poc/src/links/mod.rs`
-- Modify: `crates/lsp-poc/src/main.rs` (add `mod links;`)
+- Modify: `crates/lsp-poc/src/main.rs` (add `mod links;` between `mod hovers;` and `mod server;`)
 
 **Interfaces:**
 - Consumes: `tree_sitter_md::MarkdownParser` (crate dep, `parser` feature); `async_language_server::tree_sitter::{Node, Point, Range}`.
 - Produces (Tasks 2–4 rely on these exact names):
   - `MdIndex` (`Debug + Default`), built by `pub fn build(parser: &mut MarkdownParser, text: &str) -> Option<MdIndex>`
   - accessors: `links(&self) -> &[Link]`, `references(&self) -> &[Reference]`, `footnote_references(&self) -> &[FootnoteReference]`, `wikilinks(&self) -> &[Wikilink]`, `has_heading_slug(&self, slug: &str) -> bool`, `has_definition(&self, label: &str) -> bool`, `has_footnote_definition(&self, id: &str) -> bool`
-  - types: `Heading { slug: String, level: u8, text: String, range: Range }`, `Definition { label: String, destination: String, range: Range }`, `Link { destination: String, range: Range }`, `Reference { label: String, range: Range }`, `FootnoteReference { id: String, range: Range }`, `FootnoteDefinition { id: String, range: Range }`, `Wikilink { target: String, range: Range }` (all `Debug`; `range` is a tree-sitter `Range` in document coordinates)
+  - types: `Heading { slug: String, level: u8 }`, `Link { destination: String, range: Range }`, `Reference { label: String, range: Range }`, `FootnoteReference { id: String, range: Range }`, `Wikilink { target: String, range: Range }` (all `Debug`; ranges are tree-sitter `Range`s in document coordinates). Definitions and footnote definitions are stored as `Vec<String>` (normalized labels / ids) — the struct-per-item shapes return in later cycles when consumers need their ranges.
   - `#[derive(Debug, PartialEq, Eq)] pub enum Target { Fragment(String), Doc { path: String, fragment: Option<String> }, Wiki { path: String, fragment: Option<String> } }`
-  - `pub fn parse_destination(destination: &str) -> Option<Target>` (None = external/empty), `pub fn slugify(heading: &str) -> String` (lowercase + spaces → `-`, the reference's normalization)
+  - `pub fn parse_destination(destination: &str) -> Option<Target>` (None = external/empty/degenerate), `pub fn parse_wiki_target(target: &str) -> Option<Target>` (None for `[[#frag]]` — same-document wikilinks are not diagnosed in cycle 1), `pub fn slugify(heading: &str) -> String` (lowercase + spaces → `-`, the reference's normalization)
 
-- [ ] **Step 1: Create `crates/lsp-poc/src/links/mod.rs` with types and a failing characterization test**
+- [ ] **Step 1: Create the fixture file and the module skeleton**
 
-Create the file with the module doc, imports, type definitions, and a `#[cfg(test)] mod tests` containing `FIXTURE` and the tests from Step 3 (they fail to compile — `build` etc. do not exist yet). Skeleton:
+Create `crates/lsp-poc/tests/fixtures/links-fixture.md` with exactly this content (byte-exact — the range assertions slice back into it; trailing newline included):
+
+```markdown
+# Top
+
+See [docs](guide.md) and [summary](#top).
+
+Ref [label][ref] and [collapsed][] and [shortcut].
+
+A footnote[^1] here.
+
+[^1]: footnote text
+
+Wiki [[Other]] and [[folder/note#Section]].
+
+[ref]: https://example.com
+```
+
+Then create `crates/lsp-poc/src/links/mod.rs` with the module doc, imports, and types:
 
 ```rust
 //! Pure Markdown link model: what a document contains and what its links
@@ -49,9 +77,11 @@ Create the file with the module doc, imports, type definitions, and a `#[cfg(tes
 //!
 //! Headings, link reference definitions, and inline/reference links come
 //! from typed grammar nodes. Footnotes and wikilinks have no nodes in
-//! tree-sitter-md, so they are scanned off-tree over inline text. Known
-//! limitation: that scan also matches shapes inside code spans — the
-//! grammars give no cheaper boundary; refine when a cycle needs it.
+//! tree-sitter-md, so they are handled off-tree: definitions are `^…`
+//! link-reference-definitions (with a paragraph fallback), references and
+//! wikilinks are byte scans over inline text. Known limitation: those
+//! scans also match shapes inside code spans — the grammars give no
+//! cheaper boundary; refine when a cycle needs it.
 
 use async_language_server::tree_sitter::{Node, Point, Range};
 use tree_sitter_md::{MarkdownParser, MarkdownTree};
@@ -60,29 +90,19 @@ use tree_sitter_md::{MarkdownParser, MarkdownTree};
 #[derive(Debug, Default)]
 pub struct MdIndex {
     headings: Vec<Heading>,
-    definitions: Vec<Definition>,
+    definitions: Vec<String>,
     links: Vec<Link>,
     references: Vec<Reference>,
     footnote_references: Vec<FootnoteReference>,
-    footnote_definitions: Vec<FootnoteDefinition>,
+    footnote_definitions: Vec<String>,
     wikilinks: Vec<Wikilink>,
 }
 
-/// A GitHub-style heading anchor: lowercase, spaces folded to dashes.
+/// A heading, reduced to what matching needs: its anchor slug and depth.
 #[derive(Debug)]
 pub struct Heading {
     pub slug: String,
     pub level: u8,
-    pub text: String,
-    pub range: Range,
-}
-
-/// A link reference definition: `[label]: destination`.
-#[derive(Debug)]
-pub struct Definition {
-    pub label: String,
-    pub destination: String,
-    pub range: Range,
 }
 
 /// An inline link `[text](destination)` (images are not collected in cycle 1).
@@ -102,13 +122,6 @@ pub struct Reference {
 /// A footnote reference `[^id]`.
 #[derive(Debug)]
 pub struct FootnoteReference {
-    pub id: String,
-    pub range: Range,
-}
-
-/// A footnote definition `[^id]: text` (first inline of a paragraph).
-#[derive(Debug)]
-pub struct FootnoteDefinition {
     pub id: String,
     pub range: Range,
 }
@@ -138,27 +151,7 @@ pub enum Target {
 }
 ```
 
-(The test module and the functions below are added in Steps 1 and 4; the tests must not compile until the functions exist — that is the failing state.)
-
-- [ ] **Step 2: Run the tests to verify they fail**
-
-Run: `cargo nextest run -p lsp-poc links::`
-Expected: compile error (`build`, `parse_destination`, `slugify` not found) — add `mod links;` to `main.rs` first (after `mod hovers;`, alphabetical):
-
-```rust
-mod diagnostics;
-mod hovers;
-mod links;
-mod server;
-mod tracing;
-mod workspace;
-```
-
-Wait — `mod diagnostics;` and `mod workspace;` do not exist until Tasks 2–3; in THIS task only add the `mod links;` line between `mod hovers;` and `mod server;`. The final ordering above is reached in Task 3.
-
-Expected after adding `mod links;`: compile error about missing `build`/`parse_destination`/`slugify` in `links`.
-
-- [ ] **Step 3: Write the failing tests (characterization + unit)**
+- [ ] **Step 2: Write the failing tests (characterization + unit)**
 
 Append to `src/links/mod.rs`:
 
@@ -167,25 +160,22 @@ Append to `src/links/mod.rs`:
 mod tests {
     use super::*;
 
-    const FIXTURE: &str = concat!(
-        "# Top\n",
-        "\n",
-        "See [docs](guide.md) and [summary](#top).\n",
-        "\n",
-        "Ref [label][ref] and [collapsed][] and [shortcut].\n",
-        "\n",
-        "A footnote[^1] here.\n",
-        "\n",
-        "[^1]: footnote text\n",
-        "\n",
-        "Wiki [[Other]] and [[folder/note#Section]].\n",
-        "\n",
-        "[ref]: https://example.com\n",
-    );
+    /// Absolute path of a shared fixture document.
+    fn fixture_path(name: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
+    }
+
+    fn fixture_text() -> String {
+        // arch-lint: allow(no-sync-io) reason="unit tests read their fixture document synchronously"
+        std::fs::read_to_string(fixture_path("links-fixture.md"))
+            .expect("fixture file exists")
+    }
 
     fn fixture() -> MdIndex {
         let mut parser = MarkdownParser::default();
-        build(&mut parser, FIXTURE).expect("fixture parses")
+        build(&mut parser, &fixture_text()).expect("fixture parses")
     }
 
     #[test]
@@ -222,32 +212,58 @@ mod tests {
 
     #[test]
     fn scanned_ranges_slice_back_to_their_source_text() {
+        let text = fixture_text();
         let index = fixture();
         let range = index.footnote_references[0].range;
-        assert_eq!(&FIXTURE[range.start_byte..range.end_byte], "[^1]");
+        assert_eq!(&text[range.start_byte..range.end_byte], "[^1]");
+        let wiki_range = index.wikilinks[1].range;
         assert_eq!(
-            &FIXTURE[index.wikilinks[1].range.start_byte..index.wikilinks[1].range.end_byte],
+            &text[wiki_range.start_byte..wiki_range.end_byte],
             "[[folder/note#Section]]",
         );
     }
 
     #[test]
     fn parse_destination_classifies_targets() {
-        assert_eq!(parse_destination("#top"), Some(Target::Fragment("top".to_owned())));
+        assert_eq!(
+            parse_destination("#top"),
+            Some(Target::Fragment("top".to_owned()))
+        );
         assert_eq!(
             parse_destination("guide.md"),
-            Some(Target::Doc { path: "guide.md".to_owned(), fragment: None }),
+            Some(Target::Doc { path: "guide.md".to_owned(), fragment: None })
         );
         assert_eq!(
             parse_destination("a/b.md#section"),
             Some(Target::Doc {
                 path: "a/b.md".to_owned(),
                 fragment: Some("section".to_owned()),
-            }),
+            })
+        );
+        assert_eq!(
+            parse_destination("guide.md#"),
+            Some(Target::Doc { path: "guide.md".to_owned(), fragment: None })
         );
         assert_eq!(parse_destination("https://example.com"), None);
         assert_eq!(parse_destination("mailto:x@y.z"), None);
+        assert_eq!(parse_destination("#"), None);
         assert_eq!(parse_destination(""), None);
+    }
+
+    #[test]
+    fn parse_wiki_target_splits_path_and_fragment() {
+        assert_eq!(
+            parse_wiki_target("Other"),
+            Some(Target::Wiki { path: "Other".to_owned(), fragment: None })
+        );
+        assert_eq!(
+            parse_wiki_target("folder/note#Section"),
+            Some(Target::Wiki {
+                path: "folder/note".to_owned(),
+                fragment: Some("Section".to_owned()),
+            })
+        );
+        assert_eq!(parse_wiki_target("#Section"), None);
     }
 
     #[test]
@@ -258,7 +274,18 @@ mod tests {
 }
 ```
 
-**Characterization note (pre-authorized adjustment):** the exact shapes tree-sitter-md 0.5.3 produces for `[^1]` and `[[Other]]` inside inline content are pinned by these assertions. If the run shows extra `references` entries (e.g. `^1` or `[[other]]`), the fix is the guard in Step 4's `collect_inline` (skip link-text starting with `[` or `^`) — adjust the guard, never the expectation: footnote/wikilink syntax must not produce `Reference` entries.
+**Characterization note (pre-authorized adjustment):** the exact shapes tree-sitter-md 0.5.3 produces for `[^1]` and `[[Other]]` inside inline content are pinned by `fixture_collects_references_footnotes_and_wikilinks`. If that run shows an extra `references` entry (`^1`, `other`, `[[other]]`, …), the fix is the guard in Step 4's collapsed/shortcut arm — strengthen the guard, never the expectation: footnote/wikilink syntax must not produce `Reference` entries, and normal `[collapsed]`/`[shortcut]` links must keep producing them.
+
+- [ ] **Step 3: Add `mod links;` and run the tests to verify they fail**
+
+In `crates/lsp-poc/src/main.rs` add between `mod hovers;` and `mod server;`:
+
+```rust
+mod links;
+```
+
+Run: `cargo nextest run -p lsp-poc links::`
+Expected: compile error — `build`, `parse_destination`, `parse_wiki_target`, `slugify` not found in `links`.
 
 - [ ] **Step 4: Implement the model**
 
@@ -282,22 +309,23 @@ impl MdIndex {
     }
 
     #[must_use]
+    pub fn wikilinks(&self) -> &[Wikilink] {
+        &self.wikilinks
+    }
+
+    #[must_use]
     pub fn has_heading_slug(&self, slug: &str) -> bool {
         self.headings.iter().any(|heading| heading.slug == slug)
     }
 
     #[must_use]
     pub fn has_definition(&self, label: &str) -> bool {
-        self.definitions
-            .iter()
-            .any(|definition| definition.label == label)
+        self.definitions.iter().any(|known| known == label)
     }
 
     #[must_use]
     pub fn has_footnote_definition(&self, id: &str) -> bool {
-        self.footnote_definitions
-            .iter()
-            .any(|definition| definition.id == id)
+        self.footnote_definitions.iter().any(|known| known == id)
     }
 }
 
@@ -318,7 +346,7 @@ pub fn build(parser: &mut MarkdownParser, text: &str) -> Option<MdIndex> {
 }
 
 /// Classifies a link destination; `None` means "nothing to check"
-/// (empty, `scheme://…`, `mailto:`).
+/// (empty, `scheme://…`, `mailto:`, or a degenerate `#`/`path#` shape).
 #[must_use]
 pub fn parse_destination(destination: &str) -> Option<Target> {
     let trimmed = destination.trim();
@@ -326,17 +354,28 @@ pub fn parse_destination(destination: &str) -> Option<Target> {
         return None;
     }
     match trimmed.split_once('#') {
-        Some(("", "")) | None => {
-            let path = trimmed.strip_suffix('#').unwrap_or(trimmed);
-            Some(Target::Doc { path: path.to_owned(), fragment: None })
+        Some(("", fragment)) if !fragment.is_empty() => {
+            Some(Target::Fragment(fragment.to_owned()))
         }
-        Some(("", fragment)) => Some(Target::Fragment(fragment.to_owned())),
-        Some((path, "")) => Some(Target::Doc { path: path.to_owned(), fragment: None }),
-        Some((path, fragment)) => Some(Target::Doc {
-            path: path.to_owned(),
-            fragment: Some(fragment.to_owned()),
-        }),
+        Some((path, fragment)) => {
+            let fragment = (!fragment.is_empty()).then(|| fragment.to_owned());
+            (!path.is_empty()).then(|| Target::Doc { path: path.to_owned(), fragment })
+        }
+        None => Some(Target::Doc { path: trimmed.to_owned(), fragment: None }),
     }
+}
+
+/// Splits a wikilink's content into a [`Target::Wiki`]. `None` for
+/// `[[#fragment]]` — same-document wikilinks are not diagnosed in cycle 1.
+#[must_use]
+pub fn parse_wiki_target(target: &str) -> Option<Target> {
+    let (path, fragment) = match target.split_once('#') {
+        Some((path, fragment)) => {
+            (path, (!fragment.is_empty()).then(|| fragment.to_owned()))
+        }
+        None => (target, None),
+    };
+    (!path.is_empty()).then(|| Target::Wiki { path: path.to_owned(), fragment })
 }
 
 /// GitHub-style anchor: lowercase, spaces → dashes (the reference's
@@ -348,14 +387,18 @@ pub fn slugify(heading: &str) -> String {
 
 /// CommonMark label identity: trim, lowercase, collapse whitespace runs.
 fn normalize_label(label: &str) -> String {
-    label.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+    label
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 fn collect_block(node: Node, text: &str, index: &mut MdIndex) {
     match node.kind() {
         "atx_heading" => collect_heading(node, text, index),
         "link_reference_definition" => collect_definition(node, text, index),
-        "paragraph" => collect_footnote_definition(node, text, index),
+        "paragraph" => collect_footnote_definition_from_paragraph(node, text, index),
         _ => {}
     }
     let mut cursor = node.walk();
@@ -381,12 +424,7 @@ fn collect_heading(heading: Node, text: &str, index: &mut MdIndex) {
     let Ok(raw) = content.utf8_text(text.as_bytes()) else {
         return;
     };
-    index.headings.push(Heading {
-        slug: slugify(raw),
-        level,
-        text: raw.trim().to_owned(),
-        range: heading.range(),
-    });
+    index.headings.push(Heading { slug: slugify(raw), level });
 }
 
 fn heading_level(marker: &Node) -> Option<u8> {
@@ -398,29 +436,35 @@ fn heading_level(marker: &Node) -> Option<u8> {
         .ok()
 }
 
+/// A link reference definition. One whose label starts with `^` is a
+/// footnote definition (`[^id]: text` is valid CommonMark definition
+/// syntax and this grammar has no footnote nodes) — recorded on the
+/// footnote side instead.
 fn collect_definition(definition: Node, text: &str, index: &mut MdIndex) {
-    let mut label = None;
-    let mut destination = None;
     let mut cursor = definition.walk();
-    for child in definition.children(&mut cursor) {
-        match child.kind() {
-            "link_label" => label = bracketed_text(child, text),
-            "link_destination" => destination = clean_destination(child, text),
-            _ => {}
-        }
-    }
-    let (Some(label), Some(destination)) = (label, destination) else {
+    let Some(label_node) = definition
+        .children(&mut cursor)
+        .find(|child| child.kind() == "link_label")
+    else {
         return;
     };
-    index.definitions.push(Definition {
-        label: normalize_label(&label),
-        destination,
-        range: definition.range(),
-    });
+    let Some(raw) = bracketed_text(label_node, text) else {
+        return;
+    };
+    let label = normalize_label(&raw);
+    if let Some(id) = label.strip_prefix('^') {
+        if !id.is_empty() {
+            index.footnote_definitions.push(id.to_owned());
+        }
+        return;
+    }
+    index.definitions.push(label);
 }
 
-/// A paragraph whose first inline starts with `[^id]:` defines a footnote.
-fn collect_footnote_definition(paragraph: Node, text: &str, index: &mut MdIndex) {
+/// Fallback footnote-definition detection for the case the block grammar
+/// parsed `[^id]: …` as a plain paragraph: its first inline starts with
+/// `[^id]:`. Exactly one of the two detectors applies per occurrence.
+fn collect_footnote_definition_from_paragraph(paragraph: Node, text: &str, index: &mut MdIndex) {
     let mut cursor = paragraph.walk();
     let Some(first) = paragraph
         .children(&mut cursor)
@@ -440,10 +484,7 @@ fn collect_footnote_definition(paragraph: Node, text: &str, index: &mut MdIndex)
     if !after.starts_with(':') || id.is_empty() {
         return;
     }
-    index.footnote_definitions.push(FootnoteDefinition {
-        id: id.to_owned(),
-        range: paragraph.range(),
-    });
+    index.footnote_definitions.push(id.to_owned());
 }
 
 fn collect_inline(root: Node, text: &str, index: &mut MdIndex) {
@@ -459,7 +500,9 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex) {
             let Some(cleaned) = clean_destination(destination, text) else {
                 return;
             };
-            index.links.push(Link { destination: cleaned, range: node.range() });
+            index
+                .links
+                .push(Link { destination: cleaned, range: node.range() });
         }
         "full_reference_link" => {
             let mut cursor = node.walk();
@@ -478,6 +521,23 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex) {
             });
         }
         "collapsed_reference_link" | "shortcut_link" => {
+            // `[[wikilink]]` and `[^footnote]` can parse as these node
+            // kinds too; keep them out of references — the off-tree scan
+            // owns both shapes. The guard covers both observed layouts:
+            // the node spanning the outer brackets, or starting one byte
+            // after a `[`/`^`.
+            let start = node.range().start_byte;
+            let prev = if start == 0 { b' ' } else { text.as_bytes()[start - 1] };
+            let Ok(node_raw) = node.utf8_text(text.as_bytes()) else {
+                return;
+            };
+            if node_raw.starts_with("[[")
+                || node_raw.starts_with("[^")
+                || prev == b'['
+                || prev == b'^'
+            {
+                return;
+            }
             let mut cursor = node.walk();
             let Some(link_text) = node
                 .children(&mut cursor)
@@ -488,11 +548,6 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex) {
             let Ok(raw) = link_text.utf8_text(text.as_bytes()) else {
                 return;
             };
-            // Wikilink and footnote shapes parse as these node kinds too;
-            // they belong to the off-tree scan, not to reference links.
-            if raw.starts_with('[') || raw.starts_with('^') {
-                return;
-            }
             index.references.push(Reference {
                 label: normalize_label(raw),
                 range: node.range(),
@@ -504,12 +559,9 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex) {
     });
 }
 
-/// Scans raw inline text for footnote references and wikilinks — shapes
-/// the grammars do not model.
+/// Scans an inline tree's root text for footnote references and wikilinks
+/// — the shapes the grammars do not model.
 fn scan_offtree(root: Node, text: &str, index: &mut MdIndex) {
-    if root.kind() != "inline" {
-        return;
-    }
     let Ok(source) = root.utf8_text(text.as_bytes()) else {
         return;
     };
@@ -526,9 +578,8 @@ fn scan_footnote_references(source: &str, base: (usize, Point), index: &mut MdIn
             break;
         };
         let id = &source[start + 2..start + 2 + relative];
-        let followed_by_colon = source[start + 2 + relative..].strip_prefix(']');
-        let is_definition_marker =
-            followed_by_colon.is_some_and(|rest| rest.starts_with(':'));
+        let after_bracket = &source[start + 2 + relative + 1..];
+        let is_definition_marker = after_bracket.starts_with(':');
         at = start + 2 + relative + 1;
         if id.is_empty() || id.contains('[') || is_definition_marker {
             continue;
@@ -573,7 +624,10 @@ fn scan_range(base: (usize, Point), source: &str, start: usize, len: usize) -> R
     let inside = &source[start..start + len];
     let extra_rows = inside.matches('\n').count();
     let end_point = if extra_rows == 0 {
-        Point { row: start_point.row, column: start_point.column + len }
+        Point {
+            row: start_point.row,
+            column: start_point.column + len,
+        }
     } else {
         let last_line = inside.rfind('\n').map_or(0, |i| i + 1);
         Point {
@@ -589,12 +643,15 @@ fn scan_range(base: (usize, Point), source: &str, start: usize, len: usize) -> R
     }
 }
 
+/// `[label]` text without its brackets (falls back to the raw text when
+/// the brackets are not part of the node).
 fn bracketed_text(node: Node, text: &str) -> Option<String> {
     let raw = node.utf8_text(text.as_bytes()).ok()?;
     let stripped = raw.strip_prefix('[').and_then(|rest| rest.strip_suffix(']'));
     Some(stripped.unwrap_or(raw).trim().to_owned())
 }
 
+/// A link destination without `<>` wrapping.
 fn clean_destination(node: Node, text: &str) -> Option<String> {
     let raw = node.utf8_text(text.as_bytes()).ok()?;
     let trimmed = raw.trim();
@@ -613,12 +670,10 @@ fn walk(node: Node, visit: &mut dyn FnMut(Node)) {
 }
 ```
 
-Note: `MdIndex::wikilinks` accessor is not needed by diagnostics in cycle 1 but keep fields private and add `wikilinks()` alongside the others for symmetry? — NO (YAGNI): only the accessors listed in **Interfaces**. If clippy `must_use`-candidates fires on `build`/`parse_destination`/`slugify`/accessors, the `#[must_use]` attributes above already satisfy it.
-
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `cargo nextest run -p lsp-poc links::`
-Expected: 5 passed. If a characterization assertion fails, apply the pre-authorized guard adjustment from Step 3 and re-run.
+Expected: 6 passed. If `fixture_collects_references_footnotes_and_wikilinks` fails on an extra or missing reference, apply the pre-authorized guard adjustment from Step 2 and re-run.
 
 - [ ] **Step 6: Task gates**
 
@@ -634,10 +689,10 @@ Expected: exit 0 across all four.
 - Modify: `crates/lsp-poc/src/main.rs` (add `mod workspace;` after `mod tracing;`)
 
 **Interfaces:**
-- Consumes: Task 1's `links::{build, MdIndex, Target}` (exact names above); `async_language_server::lsp_types::Url`.
+- Consumes: Task 1's `links::{build, parse_destination, MdIndex, Target}` (exact names above); `async_language_server::lsp_types::Url`.
 - Produces (Tasks 3–4 rely on these):
-  - `#[derive(Debug)] pub enum Resolved { Found(Arc<MdIndex>), Missing }` (no `PartialEq` — `Arc<MdIndex>` compares by pointer semantics; tests pattern-match)
-  - `pub struct Index` — `Index::new()`, `pub fn resolve(&self, open: &dyn Fn(&Url) -> Option<Arc<MdIndex>>, self_url: &Url, target: &Target) -> Option<Resolved>` (None = "not applicable", only for `Target::Fragment`), `pub fn reset_root(&self)`
+  - `#[derive(Debug)] pub enum Resolved { Found(Arc<links::MdIndex>), Missing }` (no `PartialEq` — tests pattern-match)
+  - `pub struct Index` with `Index::new()`, `pub fn resolve(&self, open: &dyn Fn(&Url) -> Option<Arc<links::MdIndex>>, self_url: &Url, target: &Target) -> Option<Resolved>` (`None` = "not applicable", only for `Target::Fragment`), `pub fn reset_root(&self)`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -660,7 +715,7 @@ use std::time::SystemTime;
 use async_language_server::lsp_types::Url;
 use tree_sitter_md::MarkdownParser;
 
-use crate::links::{self, Target};
+use crate::links;
 
 /// (modification time, size in bytes) — any doubt re-reads.
 type FileStamp = (SystemTime, u64);
@@ -683,9 +738,11 @@ pub enum Resolved {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::links::{Target, parse_destination};
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("lsp-poc-ws-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("lsp-poc-ws-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("temp dir creates");
         dir
@@ -758,12 +815,9 @@ mod tests {
         std::fs::create_dir_all(root.join(".git")).expect(".git dir creates");
         write(&root.join("doc.md"), "# Disk\n");
         let doc_url = Url::from_file_path(root.join("doc.md")).expect("doc url");
-        let open_text = "# Open only\n";
-        let open_index = parse(open_text);
+        let open_index = parse("# Open only\n");
         let url_for_open = doc_url.clone();
-        let open = move |url: &Url| {
-            (url == &url_for_open).then(|| open_index.clone())
-        };
+        let open = move |url: &Url| (url == &url_for_open).then(|| open_index.clone());
 
         let index = Index::new();
         let Some(Resolved::Found(found)) = index.resolve(
@@ -779,7 +833,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_returns_none_without_a_git_root_for_wikilinks() {
+    fn wikilinks_miss_without_a_git_root() {
         let root = temp_dir("no-root");
         write(&root.join("doc.md"), "# Doc\n");
         let doc_url = Url::from_file_path(root.join("doc.md")).expect("doc url");
@@ -798,12 +852,16 @@ mod tests {
 }
 ```
 
-Also add `use crate::links::parse_destination;` to the test module's `use super::*` scope — include it as `use super::*;` plus `use crate::links::parse_destination;` at the top of `mod tests`.
+- [ ] **Step 2: Add `mod workspace;` and run the tests to verify they fail**
 
-- [ ] **Step 2: Run the tests to verify they fail**
+In `crates/lsp-poc/src/main.rs` add after `mod tracing;`:
 
-Run: `cargo nextest run -p lsp-poc workspace::` (after adding `mod workspace;` to `main.rs`, after `mod tracing;`)
-Expected: compile error — `Index`, `Resolved`, `resolve`, `reset_root` not defined.
+```rust
+mod workspace;
+```
+
+Run: `cargo nextest run -p lsp-poc workspace::`
+Expected: compile error — `Index`, `Resolved::Found`, `resolve`, `reset_root` not defined.
 
 - [ ] **Step 3: Implement `Index`**
 
@@ -862,7 +920,11 @@ impl Index {
         }
     }
 
-    fn load(&self, open: &dyn Fn(&Url) -> Option<Arc<links::MdIndex>>, candidates: &[PathBuf]) -> Resolved {
+    fn load(
+        &self,
+        open: &dyn Fn(&Url) -> Option<Arc<links::MdIndex>>,
+        candidates: &[PathBuf],
+    ) -> Resolved {
         for path in candidates {
             let Ok(url) = Url::from_file_path(path) else {
                 continue;
@@ -897,7 +959,10 @@ impl Index {
         self.cache
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(url.clone(), Entry { stamp: Some(stamp), index: Arc::clone(&index) });
+            .insert(
+                url.clone(),
+                Entry { stamp: Some(stamp), index: Arc::clone(&index) },
+            );
         Some(index)
     }
 
@@ -968,19 +1033,49 @@ Expected: exit 0 across all four.
 ### Task 3: `src/diagnostics/` — broken-link diagnostics (codes 1–6)
 
 **Files:**
+- Create: `crates/lsp-poc/tests/fixtures/broken-links.md`
+- Create: `crates/lsp-poc/tests/fixtures/valid-links.md`
 - Create: `crates/lsp-poc/src/diagnostics/mod.rs`
-- Modify: `crates/lsp-poc/src/main.rs` (add `mod diagnostics;` as the first module, alphabetical)
+- Modify: `crates/lsp-poc/src/main.rs` (add `mod diagnostics;` as the first module line, alphabetical)
 
 **Interfaces:**
-- Consumes: Task 1's `links::{MdIndex, Target, parse_destination, slugify}` + accessor methods; Task 2's `Resolved`; `async_language_server::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString}`; `async_language_server::tree_sitter_utils::ts_range_to_lsp_range`.
+- Consumes: Task 1's `links::{MdIndex, Target, parse_destination, parse_wiki_target, slugify}` + accessors; Task 2's `Resolved`; `async_language_server::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString}`; `async_language_server::tree_sitter::Range`; `async_language_server::tree_sitter_utils::ts_range_to_lsp_range`.
 - Produces (Task 4 relies on this):
   - `pub const SOURCE: &str = "lsp-poc";`
   - `pub fn compute(index: &links::MdIndex, resolve: &dyn Fn(&Target) -> Option<Resolved>) -> Vec<Diagnostic>`
-  - Codes: `1` fragment heading missing · `2` heading missing in an existing file · `3` file missing · `4` reference label without definition · `5` footnote reference without definition · `6` wikilink target missing. All `DiagnosticSeverity::ERROR`, `source: "lsp-poc"`.
+  - Codes: `1` fragment heading missing · `2` heading missing in an existing file (links and wikilinks) · `3` file missing · `4` reference label without definition · `5` footnote reference without definition · `6` wikilink target missing. All `DiagnosticSeverity::ERROR`, `source: "lsp-poc"`.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Create the fixture files and write the failing tests**
 
-Create `crates/lsp-poc/src/diagnostics/mod.rs` with module doc, imports, and the test module (implementation in Step 3):
+Create `crates/lsp-poc/tests/fixtures/broken-links.md` (byte-exact, trailing newline):
+
+```markdown
+# Top
+
+[x](#ghost)
+
+[y][missing]
+
+file [f](nowhere.md#nope)
+
+footnote [^2] here
+
+wiki [[ghost-wiki]]
+```
+
+Create `crates/lsp-poc/tests/fixtures/valid-links.md` (byte-exact, trailing newline):
+
+```markdown
+# Top
+
+[ok](#top) [ok][ref] foot[^1] wiki[[Top]]
+
+[^1]: text
+
+[ref]: a.md
+```
+
+Then create `crates/lsp-poc/src/diagnostics/mod.rs` with module doc, imports, and the test module (implementation in Step 3):
 
 ```rust
 //! Broken-link diagnostics, codes 1–6 (see the cycle-1 spec).
@@ -989,9 +1084,10 @@ Create `crates/lsp-poc/src/diagnostics/mod.rs` with module doc, imports, and the
 //! reproduced: with a typed parse, malformed links are simply not links.
 
 use async_language_server::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
+use async_language_server::tree_sitter::Range;
 use async_language_server::tree_sitter_utils::ts_range_to_lsp_range;
 
-use crate::links::{self, Target};
+use crate::links::{self, parse_destination, parse_wiki_target, slugify, Target};
 use crate::workspace::Resolved;
 
 /// `Diagnostic::source` value for every diagnostic this server publishes.
@@ -1005,9 +1101,23 @@ mod tests {
 
     use crate::links::MdIndex;
 
+    fn fixture_text(name: &str) -> String {
+        // arch-lint: allow(no-sync-io) reason="unit tests read their fixture documents synchronously"
+        std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures")
+                .join(name),
+        )
+        .expect("fixture file exists")
+    }
+
     fn parse(text: &str) -> MdIndex {
         let mut parser = MarkdownParser::default();
-        links::build(&mut parser, text).expect("fixture parses")
+        links::build(&mut parser, text).expect("input parses")
+    }
+
+    fn fixture(name: &str) -> MdIndex {
+        parse(&fixture_text(name))
     }
 
     fn codes(diagnostics: &[Diagnostic]) -> Vec<i32> {
@@ -1022,25 +1132,10 @@ mod tests {
         codes
     }
 
-    const BROKEN: &str = concat!(
-        "# Top\n",
-        "\n",
-        "[x](#ghost)\n",
-        "\n",
-        "[y][missing]\n",
-        "\n",
-        "file [f](nowhere.md#nope)\n",
-        "\n",
-        "footnote [^2] here\n",
-        "\n",
-        "wiki [[ghost-wiki]]\n",
-    );
-
     #[test]
     fn broken_fixture_produces_all_five_shapes() {
-        let index = parse(BROKEN);
-        let everything_missing =
-            |_: &Target| Some(Resolved::Missing);
+        let index = fixture("broken-links.md");
+        let everything_missing = |_: &Target| Some(Resolved::Missing);
         let diagnostics = compute(&index, &everything_missing);
         assert_eq!(codes(&diagnostics), vec![1, 3, 4, 5, 6]);
         for diagnostic in &diagnostics {
@@ -1052,9 +1147,7 @@ mod tests {
     #[test]
     fn heading_in_existing_file_is_code_two() {
         let index = parse("[f](real.md#nope)\n");
-        let resolve = |_: &Target| {
-            Some(Resolved::Found(Arc::new(parse("# Other\n"))))
-        };
+        let resolve = |_: &Target| Some(Resolved::Found(Arc::new(parse("# Other\n"))));
         let diagnostics = compute(&index, &resolve);
         assert_eq!(codes(&diagnostics), vec![2]);
         assert!(diagnostics[0].message.contains("real.md"));
@@ -1062,12 +1155,8 @@ mod tests {
 
     #[test]
     fn valid_targets_stay_silent() {
-        let index = parse(
-            "# Top\n\n[ok](#top) [ok][ref] foot[^1] wiki[[Top]]\n\n[^1]: text\n\n[ref]: a.md\n",
-        );
-        let resolve = |_: &Target| {
-            Some(Resolved::Found(Arc::new(parse("# Top\n"))))
-        };
+        let index = fixture("valid-links.md");
+        let resolve = |_: &Target| Some(Resolved::Found(Arc::new(parse("# Top\n"))));
         let diagnostics = compute(&index, &resolve);
         assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
     }
@@ -1084,10 +1173,16 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Add `mod diagnostics;` and run the tests to verify they fail**
 
-Run: `cargo nextest run -p lsp-poc diagnostics::` (after adding `mod diagnostics;` as the first `mod` line in `main.rs`)
-Expected: compile error — `compute`, `SOURCE` not defined.
+In `crates/lsp-poc/src/main.rs` add as the first module line (alphabetical):
+
+```rust
+mod diagnostics;
+```
+
+Run: `cargo nextest run -p lsp-poc diagnostics::`
+Expected: compile error — `compute` not defined in `diagnostics`.
 
 - [ ] **Step 3: Implement `compute`**
 
@@ -1127,38 +1222,44 @@ pub fn compute(
                     format!("link to non-existent file `{path}`"),
                 )),
                 Some(Resolved::Found(target_index)) => {
-                    if let Some(fragment) = fragment {
-                        if !target_index.has_heading_slug(&slugify(fragment)) {
-                            diagnostics.push(broken(
-                                2,
-                                link.range,
-                                format!("link to non-existent heading `{fragment}` in `{path}`"),
-                            ));
-                        }
-                    }
+                    check_target_heading(
+                        &mut diagnostics,
+                        target_index,
+                        fragment.as_deref(),
+                        link.range,
+                        &format!("link to non-existent heading `{{}}` in `{path}`"),
+                    );
                 }
             },
-            Target::Wiki { path, fragment } => match resolve(&target) {
-                None => {}
-                Some(Resolved::Missing) => diagnostics.push(broken(
-                    6,
-                    link.range,
-                    format!("wikilink to non-existent target `{path}`"),
-                )),
-                Some(Resolved::Found(target_index)) => {
-                    if let Some(fragment) = fragment {
-                        if !target_index.has_heading_slug(&slugify(fragment)) {
-                            diagnostics.push(broken(
-                                2,
-                                link.range,
-                                format!(
-                                    "wikilink to non-existent heading `{fragment}` in `{path}`"
-                                ),
-                            ));
-                        }
-                    }
-                }
-            },
+            // parse_destination never produces Wiki — the wikilink loop
+            // below owns those. The arm exists for match exhaustiveness.
+            Target::Wiki { .. } => {}
+        }
+    }
+
+    for wikilink in index.wikilinks() {
+        let Some(target) = parse_wiki_target(&wikilink.target) else {
+            continue;
+        };
+        let Target::Wiki { path, fragment } = &target else {
+            continue;
+        };
+        match resolve(&target) {
+            None => {}
+            Some(Resolved::Missing) => diagnostics.push(broken(
+                6,
+                wikilink.range,
+                format!("wikilink to non-existent target `{path}`"),
+            )),
+            Some(Resolved::Found(target_index)) => {
+                check_target_heading(
+                    &mut diagnostics,
+                    target_index,
+                    fragment.as_deref(),
+                    wikilink.range,
+                    &format!("wikilink to non-existent heading `{{}}` in `{path}`"),
+                );
+            }
         }
     }
 
@@ -1172,10 +1273,7 @@ pub fn compute(
             diagnostics.push(broken(
                 4,
                 reference.range,
-                format!(
-                    "link reference to non-existent definition `{}`",
-                    reference.label
-                ),
+                format!("link reference to non-existent definition `{}`", reference.label),
             ));
         }
     }
@@ -1196,7 +1294,28 @@ pub fn compute(
     diagnostics
 }
 
-fn broken(code: i32, range: async_language_server::tree_sitter::Range, message: String) -> Diagnostic {
+/// Appends code 2 when a resolved target's fragment names no heading.
+fn check_target_heading(
+    diagnostics: &mut Vec<Diagnostic>,
+    target_index: &links::MdIndex,
+    fragment: Option<&str>,
+    range: async_language_server::tree_sitter::Range,
+    template: &str,
+) {
+    let Some(fragment) = fragment else {
+        return;
+    };
+    if target_index.has_heading_slug(&slugify(fragment)) {
+        return;
+    }
+    diagnostics.push(broken(
+        2,
+        range,
+        template.replace("{}", fragment),
+    ));
+}
+
+fn broken(code: i32, range: Range, message: String) -> Diagnostic {
     Diagnostic {
         range: ts_range_to_lsp_range(range),
         severity: Some(DiagnosticSeverity::ERROR),
@@ -1211,14 +1330,27 @@ fn broken(code: i32, range: async_language_server::tree_sitter::Range, message: 
 }
 ```
 
-The `use` list at the top must also bring in `slugify` and `parse_destination`:
-change `use crate::links::{self, Target};` to
-`use crate::links::{self, parse_destination, slugify, Target};`.
+**Implementer latitude on the fragment check:** the `check_target_heading` helper above may be replaced by the direct inline form in both loops — no behavioral difference, pick whichever reads better in place. The direct form for the link loop is:
+
+```rust
+Some(Resolved::Found(target_index)) => {
+    if let Some(fragment) = fragment {
+        if !target_index.has_heading_slug(&slugify(fragment)) {
+            diagnostics.push(broken(
+                2,
+                link.range,
+                format!("link to non-existent heading `{fragment}` in `{path}`"),
+            ));
+        }
+    }
+}
+```
+(and the analogous `wikilink to non-existent heading …` in the wiki loop). Pick one form — whichever reads better in place — and keep it identical in both loops.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `cargo nextest run -p lsp-poc diagnostics::`
-Expected: 4 passed. If `broken_fixture_produces_all_five_shapes` reports an extra code 4 for `[^2]`, the Task 1 guard or this task's `references` filter needs the shape it missed — extend the filter (labels starting with `^`/`[`), never the expectation.
+Expected: 4 passed. If `broken_fixture_produces_all_five_shapes` reports an extra code 4 for `[^2]` or the wiki shape, the Task 1 guard or this task's `references` filter missed the shape — extend the filter (labels starting with `^`/`[`), never the expectation.
 
 - [ ] **Step 5: Task gates**
 
@@ -1231,15 +1363,15 @@ Expected: exit 0 across all four.
 
 **Files:**
 - Modify: `crates/lsp-poc/src/server.rs` (struct fields, capabilities, hooks, `document_diagnostics`, private helpers)
-- Modify: `crates/lsp-poc/src/main.rs` (verify the module list reads: `mod diagnostics; mod hovers; mod links; mod server; mod tracing; mod workspace;`)
+- Modify: `crates/lsp-poc/src/main.rs` (verify the module list reads exactly: `mod diagnostics; mod hovers; mod links; mod server; mod tracing; mod workspace;`)
 
 **Interfaces:**
-- Consumes: Tasks 1–3 exact names: `links::MdIndex`, `workspace::{Index, Resolved}`, `diagnostics::{compute, SOURCE}` (SOURCE not used in server — skip), `Target`.
+- Consumes: Tasks 1–3 exact names: `links::{self, Target}`, `workspace::Index`, `diagnostics::compute`.
 - Produces: a binary that publishes `textDocument/publishDiagnostics` on `did_open`/`did_change` and answers `textDocument/diagnostic`. Zed shows red underlines (end-to-end criterion, owner-verified).
 
 - [ ] **Step 1: Rewrite `crates/lsp-poc/src/server.rs`**
 
-Full new content (the `hover` fn and its helpers stay byte-identical; only imports, the struct, `new`, `server_capabilities`, and the trait additions are new):
+Full new content (the `hover` fn stays byte-identical at the bottom; only imports, the struct, `new`, `server_capabilities`, and the trait additions are new):
 
 ```rust
 use std::future::{ready, Future};
@@ -1248,11 +1380,11 @@ use std::sync::{Arc, Mutex, PoisonError};
 use async_language_server::lsp_types::notification::PublishDiagnostics;
 use async_language_server::lsp_types::{
     ClientCapabilities, Diagnostic, DiagnosticServerCapabilities, DiagnosticOptions,
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams,
-    DidChangeWorkspaceFoldersParams, DocumentDiagnosticParams, DocumentDiagnosticReport,
-    DocumentDiagnosticReportResult, FullDocumentDiagnosticReport, Hover, HoverContents,
-    HoverParams, HoverProviderCapability, MarkupContent, MarkupKind, PublishDiagnosticsParams,
-    RelatedFullDocumentDiagnosticReport, ServerCapabilities, ServerInfo, Url,
+    DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams, DidOpenTextDocumentParams,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    MarkupContent, MarkupKind, PublishDiagnosticsParams, RelatedFullDocumentDiagnosticReport,
+    ServerCapabilities, ServerInfo, Url,
 };
 use async_language_server::server::{DocumentMatcher, Server, ServerResult, ServerState};
 use async_language_server::tree_sitter_utils::{
@@ -1262,7 +1394,7 @@ use tree_sitter_md::MarkdownParser;
 
 use crate::diagnostics;
 use crate::links::{self, Target};
-use crate::workspace::{self, Index, Resolved};
+use crate::workspace::Index;
 
 pub struct PocLanguageServer {
     parser: Mutex<MarkdownParser>,
@@ -1288,6 +1420,7 @@ impl PocLanguageServer {
         };
         let text = doc.text_contents();
         let Some(index) = self.parse(&text) else {
+            tracing::warn!("markdown parse produced no tree; skipping diagnostics for {url}");
             return Vec::new();
         };
         let open = |open_url: &Url| {
@@ -1422,8 +1555,8 @@ fn hover(state: &ServerState, params: HoverParams) -> ServerResult<Option<Hover>
 
 Notes:
 - The old `#[derive(Debug, Clone)]` on the struct is dropped — the new fields are not `Clone`, and nothing in the framework requires either trait of the server.
-- The `workspace::{self, ...}` import: `workspace` itself may be unused after this task (only `Index`/`Resolved` are named). If `rustfmt`/clippy flags the bare `workspace`, drop it and keep `use crate::workspace::{Index, Resolved};`.
 - `did_change_workspace_folders` matches the trait's exact signature (sync, `&ServerState`, no return).
+- If clippy flags anything about the `open` closure's inference, annotate it as `let open = |open_url: &Url| -> Option<Arc<links::MdIndex>> { … };`.
 
 - [ ] **Step 2: Verify the module list in `main.rs`**
 
@@ -1448,7 +1581,7 @@ Expected: exit 0 across all four. There is no unit-test leg for the hooks: `Serv
 ### Task 5: Docs — the tree changed shape
 
 **Files:**
-- Modify: `CLAUDE.md` (lines 23, 24-25 region)
+- Modify: `CLAUDE.md` (capability line, feature-modules line)
 - Modify: `.claude/rules/product.md` (boundary paragraph, "Target Use Cases" line)
 - Modify: `crates/lsp-poc/arch-lint.toml` (header comment only — no scope/rule edits)
 
@@ -1502,26 +1635,26 @@ new:
 
 - [ ] **Step 5: arch-lint.toml — header comment refresh (comment only)**
 
-old (the sentence inside the `# --- Layer rules` comment block):
+The sentence beginning "Scopes for modules that the feature" ends with:
 ```
 # spec has not landed yet (error, links, workspace, most capabilities) are
 # declared up front so the layering guards the structure as it grows.
 ```
-new:
+Replace that tail with:
 ```
 # spec has not landed yet (error and the remaining capability scopes) are
 # declared up front so the layering guards the structure as it grows;
 # links, workspace, and diagnostics landed with the 2026-09-13 cycle-1
 # spec (docs/superpowers/specs/2026-09-13-md-capabilities-cycle1-diagnostics-design.md).
 ```
-Match the exact wrapped lines in the file before editing — the old text above is the tail of the sentence beginning "Scopes for modules that the feature". If the wrapped lines differ, adapt `old_string` to the file, not the other way around.
+Match the exact wrapped lines in the file before editing — if the wrap differs, adapt `old_string` to the file, not the other way around.
 
 - [ ] **Step 6: Verify the docs**
 
 Run: `grep -rn "currently only hover\|currently: hover)\|or cross-file analysis" CLAUDE.md .claude/rules/ && exit 1 || exit 0`
 Expected: exit 0 (no matches).
 Run: `make test`
-Expected: exit 0 (the arch-lint test re-reads the header comment file).
+Expected: exit 0 (the arch-lint test re-reads the edited file).
 
 ---
 
@@ -1547,8 +1680,8 @@ Expected: deny exits 2 with exactly the one owner-ratified `wildcard` error on t
 - [ ] **Step 3: Changed-set report for the owner**
 
 Run: `git status --porcelain && git diff --stat`
-Expected changed set: created `crates/lsp-poc/src/links/mod.rs`, `crates/lsp-poc/src/workspace/mod.rs`, `crates/lsp-poc/src/diagnostics/mod.rs`; modified `crates/lsp-poc/src/main.rs`, `crates/lsp-poc/src/server.rs`, `CLAUDE.md`, `.claude/rules/product.md`, `crates/lsp-poc/arch-lint.toml` — 8 paths, nothing else (no `Cargo.lock` delta: zero dependency changes).
+Expected changed set: created `crates/lsp-poc/tests/fixtures/{links-fixture,broken-links,valid-links}.md`, `crates/lsp-poc/src/links/mod.rs`, `crates/lsp-poc/src/workspace/mod.rs`, `crates/lsp-poc/src/diagnostics/mod.rs`; modified `crates/lsp-poc/src/main.rs`, `crates/lsp-poc/src/server.rs`, `CLAUDE.md`, `.claude/rules/product.md`, `crates/lsp-poc/arch-lint.toml` — 11 paths, nothing else (no `Cargo.lock` delta: zero dependency changes).
 
 - [ ] **Step 4: Hand off to the owner**
 
-Report: status, gate outputs, the changed set. Then the owner: commits; `cargo build`; opens a `.md` in Zed and breaks a link (`[x](#nope)`) — red underline appears; fixes it — disappears. Wikilink check: `[[ghost]]` on a line → underline; `[[README]]` with `README.md` at the repo root → clean. End-to-end success criterion from the spec.
+Report: status, gate outputs, the changed set. Then the owner: commits; `cargo build`; opens a `.md` in Zed and breaks a link (`[x](#nope)`) — red underline appears; fixes it — disappears. Wikilink check: `[[ghost]]` on a line → underline; `[[README]]` with `README.md` at the repo root → clean. Footnote check: `[^x]` without a definition → underline; with `[^x]: text` → clean. End-to-end success criterion from the spec.
