@@ -9,9 +9,12 @@
 //! scans also match shapes inside code spans — the grammars give no
 //! cheaper boundary; refine when a cycle needs it.
 
-#![expect(
-    dead_code,
-    reason = "model lands before its consumers; wiring lands in cycle-1 task 4"
+#![cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "model lands before its consumers; wiring lands in cycle-1 task 4"
+    )
 )]
 
 use async_language_server::tree_sitter::{Node, Point, Range};
