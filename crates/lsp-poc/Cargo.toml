@@ -16,7 +16,6 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { version = "1.0.104" }
 async-language-server = { git = "https://github.com/Jazz-Man/async-language-server", rev = "v0.10.0", features = ["tree-sitter"] }
-clap = { version = "4.6.6", features = ["derive","env"] }
 tokio.workspace = true
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23" , features = ["env-filter"] }

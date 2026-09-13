@@ -13,12 +13,11 @@ dated pins (miri's `MIRI_TOOLCHAIN` in the Makefile) deliberately, never casuall
 `v0.10.0`, with the `tree-sitter` feature — owns the JSON-RPC loop, the
 document store, and tree-sitter parsing. Use its re-exports (`lsp_types`,
 `tree_sitter`, `tree_sitter_utils`) instead of adding those crates directly.
-`serve(server)` serves over stdio; the single `serve` subcommand parses its
-flags but never reads them. The Markdown document matcher's grammar is
+`serve(server)` serves over stdio; the binary adds no CLI of its own. The Markdown document matcher's grammar is
 `tree-sitter-md`. The workspace declares no `[features]` section yet — add a
 no-default-features test leg together with the first feature. The Zed
 extension (`zed_extension_api`, wasm `cdylib`) is a launcher only: it spawns
-`target/debug/lsp-poc serve --stdio`; the tuned `[profile.release]` at the
+`target/debug/lsp-poc` with no arguments; the tuned `[profile.release]` at the
 workspace root is for release builds — ignore it day-to-day.
 
 ## Verification battery

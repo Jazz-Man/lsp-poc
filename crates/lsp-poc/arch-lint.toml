@@ -18,8 +18,8 @@
 # features. The capability modules — hovers, code-actions, definitions,
 # references, renames, completions, diagnostics, symbols — are siblings and
 # never import each other: shared logic goes into links/workspace, wiring
-# stays in server.rs. server.rs is the single Server impl below the CLI edge;
-# cli owns clap and the serve() call. Scopes for modules that the feature
+# stays in server.rs. server.rs is the single Server impl; main.rs owns the
+# serve() call at the process edge. Scopes for modules that the feature
 # spec has not landed yet (error, links, workspace, most capabilities) are
 # declared up front so the layering guards the structure as it grows.
 # src/utils.rs is deliberately unscoped: it is an undeclared PHP-era leftover
@@ -77,84 +77,74 @@ paths = ["src/symbols/**"]
 name = "server"
 paths = ["src/server.rs"]
 
-[[scopes]]
-name = "cli"
-paths = ["src/cli/**"]
-
 [[deny-scope-dep]]
 name = "tracing-is-leaf"
 from = "tracing"
-to = ["error", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["error", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "tracing setup is a leaf; it must not know about any server machinery."
 
 [[deny-scope-dep]]
 name = "error-is-leaf"
 from = "error"
-to = ["tracing", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["tracing", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "PocError is the shared bottom; it must not depend on features or wiring."
 
 [[deny-scope-dep]]
 name = "links-below-features"
 from = "links"
-to = ["workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "the link stack is shared infrastructure below features; it must not reach the index, capabilities, or wiring."
 
 [[deny-scope-dep]]
 name = "workspace-below-features"
 from = "workspace"
-to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "the workspace index sits below features; it may reuse links but must not know capabilities or wiring."
 
 [[deny-scope-dep]]
 name = "hovers-are-siblings"
 from = "hovers"
-to = ["code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
 
 [[deny-scope-dep]]
 name = "code-actions-are-siblings"
 from = "code-actions"
-to = ["hovers", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["hovers", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
 
 [[deny-scope-dep]]
 name = "definitions-are-siblings"
 from = "definitions"
-to = ["hovers", "code-actions", "references", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["hovers", "code-actions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
 
 [[deny-scope-dep]]
 name = "references-are-siblings"
 from = "references"
-to = ["hovers", "code-actions", "definitions", "renames", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["hovers", "code-actions", "definitions", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
 
 [[deny-scope-dep]]
 name = "renames-are-siblings"
 from = "renames"
-to = ["hovers", "code-actions", "definitions", "references", "completions", "diagnostics", "symbols", "server", "cli"]
+to = ["hovers", "code-actions", "definitions", "references", "completions", "diagnostics", "symbols", "server"]
 message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
 
 [[deny-scope-dep]]
 name = "completions-are-siblings"
 from = "completions"
-to = ["hovers", "code-actions", "definitions", "references", "renames", "diagnostics", "symbols", "server", "cli"]
+to = ["hovers", "code-actions", "definitions", "references", "renames", "diagnostics", "symbols", "server"]
 message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
 
 [[deny-scope-dep]]
 name = "diagnostics-are-siblings"
 from = "diagnostics"
-to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "symbols", "server", "cli"]
+to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "symbols", "server"]
 message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
 
 [[deny-scope-dep]]
 name = "symbols-are-siblings"
 from = "symbols"
-to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "server", "cli"]
+to = ["hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "server"]
 message = "capability modules are siblings: shared logic goes to links/workspace, wiring stays in server.rs."
-
-[[deny-scope-dep]]
-name = "server-below-cli"
-from = "server"
-to = ["cli"]
-message = "server.rs is the wiring layer below the CLI edge; it must not reach clap or the serve entry point."

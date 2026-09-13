@@ -57,7 +57,7 @@ accepts any boxed error — a bare string reaches it through std's
 failure.
 
 `anyhow` stays at the CLI edge only: `main() -> anyhow::Result<()>` and the
-`.context(...)` around `serve()` in `cli/serve.rs`. Server code never imports
+`.context(...)` around `serve()` in `src/main.rs`. Server code never imports
 `anyhow`.
 
 ## No swallowed failures, no panics on input

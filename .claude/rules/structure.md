@@ -8,13 +8,13 @@ One pipeline, two crates. Everything that is an LSP capability lives in or hangs
 
 ### The LSP server
 
-`/crates/lsp-poc/` (package `lsp-poc`, binary `lsp-poc`) is the entire language server. `src/main.rs` declares the module tree and starts the CLI. `src/server.rs` holds `PocLanguageServer` — the single `Server` impl where capabilities are declared and features implemented. `src/cli/` holds the clap subcommands (`serve.rs` starts the server over stdio). Per-capability helper modules keep trait methods thin; push capability logic into the matching module (the pattern's only current instance is the empty `src/hovers/` placeholder — hover logic lives in `server.rs` itself).
+`/crates/lsp-poc/` (package `lsp-poc`, binary `lsp-poc`) is the entire language server. `src/main.rs` declares the module tree and owns the process edge: tracing setup plus the single `serve()` call over stdio. `src/server.rs` holds `PocLanguageServer` — the single `Server` impl where capabilities are declared and features implemented. Per-capability helper modules keep trait methods thin; push capability logic into the matching module (the pattern's only current instance is the empty `src/hovers/` placeholder — hover logic lives in `server.rs` itself).
 
 Gotcha: a module file on disk is dead until declared in `main.rs`. `src/utils.rs` is currently undeclared — a PHP-era leftover. When creating a capability module, add its `mod` line to `main.rs` in the same change.
 
 ### The Zed extension
 
-`/crates/zed-md-lsp/` (package `zed-lsp-poc`, wasm `cdylib`) is a launcher only. `language_server_command()` in `src/lib.rs` spawns `<worktree root>/target/debug/lsp-poc serve --stdio` — the profile is hardcoded — there is no settings-driven switch. Consequence: a debug build must exist before the extension works, and server changes need only `cargo build` — rebuild `extension.wasm` only when the extension crate itself changes. `extension.toml` registers the server for Markdown; `.zed/settings.json` selects `zed-lsp-poc` for Markdown files.
+`/crates/zed-md-lsp/` (package `zed-lsp-poc`, wasm `cdylib`) is a launcher only. `language_server_command()` in `src/lib.rs` spawns `<worktree root>/target/debug/lsp-poc` with no arguments — the profile is hardcoded — there is no settings-driven switch. Consequence: a debug build must exist before the extension works, and server changes need only `cargo build` — rebuild `extension.wasm` only when the extension crate itself changes. `extension.toml` registers the server for Markdown; `.zed/settings.json` selects `zed-lsp-poc` for Markdown files.
 
 ## The Capability Wiring Pattern
 

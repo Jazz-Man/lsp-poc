@@ -23,9 +23,7 @@ impl zed::Extension for LspPocExtension {
             .to_string_lossy()
             .to_string();
 
-        Ok(zed::Command::new(bin)
-            .args(["serve", "--stdio"])
-            .envs(worktree.shell_env()))
+        Ok(zed::Command::new(bin).envs(worktree.shell_env()))
     }
 }
 
