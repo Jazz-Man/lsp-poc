@@ -9,14 +9,6 @@
 //! scans also match shapes inside code spans — the grammars give no
 //! cheaper boundary; refine when a cycle needs it.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "model lands before its consumers; wiring lands in cycle-1 task 4"
-    )
-)]
-
 use async_language_server::tree_sitter::{Node, Point, Range};
 use tree_sitter_md::MarkdownParser;
 
@@ -36,6 +28,13 @@ pub struct MdIndex {
 #[derive(Debug)]
 pub struct Heading {
     pub slug: String,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "heading depth is consumed from cycle 2 (symbols/ToC) onward"
+        )
+    )]
     pub level: u8,
 }
 

@@ -6,11 +6,6 @@
 //! nearest ancestor holding `.git` (Zed worktrees are git repos),
 //! discovered once and reset by `reset_root` on folder changes.
 
-#![expect(
-    dead_code,
-    reason = "model lands before its consumers; wiring lands in cycle-1 task 4"
-)]
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};

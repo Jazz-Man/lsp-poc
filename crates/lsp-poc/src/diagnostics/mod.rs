@@ -3,14 +3,6 @@
 //! Invalid link syntax (the reference's code 0) is consciously not
 //! reproduced: with a typed parse, malformed links are simply not links.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "model lands before its consumers; wiring lands in cycle-1 task 4"
-    )
-)]
-
 use async_language_server::lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
 use async_language_server::tree_sitter::Range;
 use async_language_server::tree_sitter_utils::ts_range_to_lsp_range;

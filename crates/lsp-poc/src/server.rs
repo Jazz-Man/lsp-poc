@@ -1,20 +1,72 @@
 use std::future::{Future, ready};
+use std::sync::{Arc, Mutex, PoisonError};
 
+use async_language_server::lsp_types::notification::PublishDiagnostics;
 use async_language_server::lsp_types::{
-    ClientCapabilities, Hover, HoverContents, HoverParams, HoverProviderCapability, MarkupContent,
-    MarkupKind, ServerCapabilities, ServerInfo,
+    ClientCapabilities, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
+    DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams, DidOpenTextDocumentParams,
+    DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
+    FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams, HoverProviderCapability,
+    MarkupContent, MarkupKind, PublishDiagnosticsParams, RelatedFullDocumentDiagnosticReport,
+    ServerCapabilities, ServerInfo, Url,
 };
 use async_language_server::server::{DocumentMatcher, Server, ServerResult, ServerState};
 use async_language_server::tree_sitter_utils::{
     ts_range_contains_lsp_position, ts_range_to_lsp_range,
 };
+use tree_sitter_md::MarkdownParser;
 
-#[derive(Debug, Clone)]
-pub struct PocLanguageServer {}
+use crate::diagnostics;
+use crate::links::{self, Target};
+use crate::workspace::Index;
+
+#[derive(Clone)]
+pub struct PocLanguageServer {
+    parser: Arc<Mutex<MarkdownParser>>,
+    files: Arc<Index>,
+}
 
 impl PocLanguageServer {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            parser: Arc::new(Mutex::new(MarkdownParser::default())),
+            files: Arc::new(Index::new()),
+        }
+    }
+
+    fn parse(&self, text: &str) -> Option<Arc<links::MdIndex>> {
+        let mut parser = self.parser.lock().unwrap_or_else(PoisonError::into_inner);
+        links::build(&mut parser, text).map(Arc::new)
+    }
+
+    fn compute_diagnostics(&self, state: &ServerState, url: &Url) -> Vec<Diagnostic> {
+        let Some(doc) = state.document(url) else {
+            return Vec::new();
+        };
+        let text = doc.text_contents();
+        let Some(index) = self.parse(&text) else {
+            tracing::warn!("markdown parse produced no tree; skipping diagnostics for {url}");
+            return Vec::new();
+        };
+        let open = |open_url: &Url| {
+            state
+                .document(open_url)
+                .and_then(|open_doc| self.parse(&open_doc.text_contents()))
+        };
+        diagnostics::compute(&index, &|target: &Target| {
+            self.files.resolve(&open, url, target)
+        })
+    }
+
+    fn publish(&self, state: &ServerState, url: &Url) {
+        let params = PublishDiagnosticsParams {
+            uri: url.clone(),
+            diagnostics: self.compute_diagnostics(state, url),
+            version: None,
+        };
+        if let Err(error) = state.client().notify::<PublishDiagnostics>(params) {
+            tracing::warn!(%error, "failed to publish diagnostics");
+        }
     }
 }
 
@@ -35,7 +87,10 @@ impl Server for PocLanguageServer {
     fn server_capabilities(_: ClientCapabilities) -> Option<ServerCapabilities> {
         Some(ServerCapabilities {
             hover_provider: Some(HoverProviderCapability::Simple(true)),
-
+            diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
+                workspace_diagnostics: false,
+                ..DiagnosticOptions::default()
+            })),
             ..Default::default()
         })
     }
@@ -47,6 +102,40 @@ impl Server for PocLanguageServer {
                 .with_lang_strings(["Markdown"])
                 .with_lang_grammar(tree_sitter_md::LANGUAGE.into()),
         ]
+    }
+
+    fn did_open(&self, state: &ServerState, params: &DidOpenTextDocumentParams) {
+        self.publish(state, &params.text_document.uri);
+    }
+
+    fn did_change(&self, state: &ServerState, params: &DidChangeTextDocumentParams) {
+        self.publish(state, &params.text_document.uri);
+    }
+
+    fn did_change_workspace_folders(
+        &self,
+        _state: &ServerState,
+        _params: &DidChangeWorkspaceFoldersParams,
+    ) {
+        self.files.reset_root();
+    }
+
+    fn document_diagnostics(
+        &self,
+        state: ServerState,
+        params: DocumentDiagnosticParams,
+    ) -> impl Future<Output = ServerResult<DocumentDiagnosticReportResult>> + Send {
+        let url = params.text_document.uri;
+        let diagnostics = self.compute_diagnostics(&state, &url);
+        ready(Ok(DocumentDiagnosticReportResult::Report(
+            DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
+                related_documents: None,
+                full_document_diagnostic_report: FullDocumentDiagnosticReport {
+                    result_id: None,
+                    items: diagnostics,
+                },
+            }),
+        )))
     }
 
     fn hover(
