@@ -2,6 +2,7 @@
 //! the owner's `async-language-server` fork and served over stdio.
 
 mod hovers;
+mod links;
 mod server;
 mod tracing;
 

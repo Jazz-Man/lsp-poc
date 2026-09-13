@@ -201,7 +201,13 @@ mod tests {
         let mut labels: Vec<&str> =
             index.references.iter().map(|r| r.label.as_str()).collect();
         labels.sort_unstable();
-        assert_eq!(labels, vec!["collapsed", "label", "shortcut"]);
+        // `[label][ref]` contributes its LOOKUP label ("ref"), not its
+        // display text — diagnostics code 4 is defined on the lookup key.
+        // (Corrected 2026-09-13 during Task 1 execution: the original
+        // expectation ["collapsed", "label", "shortcut"] contradicted
+        // Task 3's valid-links semantics; full_reference_link's
+        // link_label child is the lookup bracket.)
+        assert_eq!(labels, vec!["collapsed", "ref", "shortcut"]);
         assert!(index.has_footnote_definition("1"));
         assert_eq!(index.footnote_references.len(), 1);
         assert_eq!(index.footnote_references[0].id, "1");
