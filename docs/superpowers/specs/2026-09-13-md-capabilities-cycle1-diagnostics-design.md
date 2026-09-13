@@ -94,18 +94,40 @@ scanning on tree-sitter.
 
 ## Cycle 1 changes
 
-- `crates/lsp-poc/src/md/mod.rs` — model types (`MdIndex`, heading, link,
-  link-reference-definition, footnote-definition/ref, wikilink) and `MdIndex::parse`.
-- `crates/lsp-poc/src/md/resolve.rs` — target resolution (same-doc → state documents →
-  disk read with stamp cache), git-root discovery.
-- `crates/lsp-poc/src/diagnostics.rs` — `compute_diagnostics` producing the codes above.
-- `crates/lsp-poc/src/server.rs` — capability additions, hooks `did_open`/`did_change`,
-  `did_change_workspace_folders`, `document_diagnostics`; `PocLanguageServer` gains the
-  parser (Mutex) and the cross-file cache.
-- `crates/lsp-poc/src/main.rs` — `mod md;` and `mod diagnostics;` declared in the same
-  change (structure rule's module gotcha).
-- `crates/lsp-poc/arch-lint.toml` — scope for the new modules so the arch-lint test
-  stays green.
+Module names follow the scopes already declared in `arch-lint.toml` (the layering was
+ratified up front in an earlier round): the pure link model lives in `src/links/`, the
+cross-file index in `src/workspace/`, the diagnostic computation in `src/diagnostics/`.
+(Corrected 2026-09-13: the design discussion named these `src/md/mod.rs` +
+`src/md/resolve.rs` + `src/diagnostics.rs`; the declared scopes win — no new scopes are
+needed, only a header-comment refresh.)
+
+- `crates/lsp-poc/src/links/mod.rs` — pure model types (`MdIndex`, heading, link,
+  link-reference-definition, footnote-ref/def, wikilink), `build(parser, text)`,
+  target parsing (`Target`), `slugify`; footnote/wikilink shapes are an "offtree" scan
+  over inline text (the grammars have no nodes for them). Known limitation, documented
+  in the module: shapes inside code spans match too.
+- `crates/lsp-poc/src/workspace/mod.rs` — cross-file index: `Index` owning its own
+  `MarkdownParser` (so server and index never fight over one Mutex), a
+  `Url → (FileStamp, Arc<MdIndex>)` cache, git-root discovery (`root_for`/`reset_root`),
+  and `resolve(open, self_url, target) -> Option<Resolved>` where `open` is a closure
+  the server wires to `state.document(...)` — workspace stays below `server` per the
+  declared deny rule.
+- `crates/lsp-poc/src/diagnostics/mod.rs` — `compute(index, resolve)` producing the
+  codes above; converts tree-sitter ranges via `tree_sitter_utils`.
+- `crates/lsp-poc/src/server.rs` — capability additions (`diagnostic_provider` with
+  `workspace_diagnostics: false`), hooks `did_open`/`did_change` (publish) and
+  `did_change_workspace_folders` (root reset), `document_diagnostics` (pull parity);
+  `PocLanguageServer` gains its own parser Mutex and the `workspace::Index`; the
+  `Debug, Clone` derives are dropped (no framework user needs them, the new fields
+  aren't `Clone`).
+- `crates/lsp-poc/src/main.rs` — `mod diagnostics; mod links; mod workspace;` declared
+  in the same change (structure rule's module gotcha).
+- Docs: `CLAUDE.md` (capability + feature-module lines), `product.md` (cross-file
+  sentence superseded by owner decision, "currently: hover" line), and the
+  `arch-lint.toml` header comment (links/workspace/diagnostics have landed).
+- `crates/lsp-poc/arch-lint.toml` scopes themselves stay untouched — all three are
+  already declared; `NoSyncIo` allow comments with reasons go on each synchronous
+  filesystem call (notification hooks are synchronous by protocol necessity).
 
 ## Roadmap (each cycle: own spec → plan → live Zed verification)
 
@@ -134,10 +156,10 @@ upstream rev, changes to the Zed extension crate, changes to the existing hover.
   footnotes/wikilinks collected with correct ranges; resolution cases (heading
   hit/miss, file hit/miss, wikilink with and without `.md` suffix, footnote hit/miss);
   diagnostics tests (codes + ranges).
-- Planning-time verifications (before code): probe test composing inline-tree offsets
-  (inline trees are parent-relative); whether `async_language_server::testing` is
-  public (decides if an integration test leg is possible, else pure-function tests +
-  live test only).
+- Planning-time verifications — done during planning (2026-09-13): inline trees parse
+  through `set_included_ranges` with **absolute document coordinates**, so no offset
+  composition is needed; `async_language_server::testing` is `#[cfg(test)] pub(crate)`,
+  so no integration leg exists — pure-function tests + the live Zed test it is.
 - **End-to-end (owner)**: `cargo build`, open a `.md` in Zed, break a link — red
   underline appears; fix it — disappears.
 
