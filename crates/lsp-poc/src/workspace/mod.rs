@@ -83,7 +83,6 @@ impl Index {
     /// covers previously resolved workspace files; open documents are the
     /// caller's merge.
     #[must_use]
-    #[expect(dead_code, reason = "the server consumes it at cycle-3 task-3 wiring")]
     pub fn snapshot(&self) -> Vec<(Url, Arc<links::MdIndex>)> {
         let cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
         let mut pairs: Vec<_> = cache
@@ -360,6 +359,42 @@ mod tests {
             ),
             Some(Resolved::Missing),
         ));
+        // arch-lint: allow(no-sync-io) reason="temp-dir fixtures run under #[cfg(test)], never on the async runtime"
+        std::fs::remove_dir_all(&root).expect("cleanup removes");
+    }
+
+    #[test]
+    fn snapshot_lists_resolved_files_sorted_by_url() {
+        let root = temp_dir("snapshot");
+        // arch-lint: allow(no-sync-io) reason="temp-dir fixtures run under #[cfg(test)], never on the async runtime"
+        std::fs::create_dir_all(root.join(".git")).expect(".git dir creates");
+        write(&root.join("b.md"), "# B\n");
+        write(&root.join("a/c.md"), "# C\n");
+
+        let index = Index::new();
+        let doc_url = Url::from_file_path(root.join("a/c.md")).expect("doc url");
+        let no_open = |_: &Url| None;
+        // Nothing resolved yet — the snapshot covers the cache only.
+        assert!(index.snapshot().is_empty());
+
+        // Two resolves prime the cache: `b.md` falls back to the root,
+        // `c.md` sits next to the requesting document.
+        for target in ["b.md", "c.md"] {
+            assert!(matches!(
+                index.resolve(
+                    &no_open,
+                    &doc_url,
+                    &parse_destination(target).expect("target parses"),
+                ),
+                Some(Resolved::Found { .. }),
+            ));
+        }
+
+        let snapshot = index.snapshot();
+        let urls: Vec<_> = snapshot.iter().map(|(url, _)| url.as_str()).collect();
+        assert_eq!(urls.len(), 2, "both resolved files are cached");
+        assert!(urls[0] < urls[1], "sorted by url: {urls:?}");
+
         // arch-lint: allow(no-sync-io) reason="temp-dir fixtures run under #[cfg(test)], never on the async runtime"
         std::fs::remove_dir_all(&root).expect("cleanup removes");
     }

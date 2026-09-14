@@ -3,16 +3,11 @@
 //! A heading answers with every link/wikilink that lands on it across
 //! the candidate documents, each link resolved in its own document's
 //! context. A link reference definition or footnote definition answers
-//! with its same-document usages. A link or wikilink answers with its
-//! target — web and unparseable destinations are excluded by the target
-//! parsers. Absence is `None`.
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the capability lands before its consumers; server wiring lands in cycle-3 task 3"
-    )
-)]
+//! with its same-document usages; a reference or footnote reference
+//! under the cursor answers the other way, with its definition's
+//! location. A link or wikilink answers with its target — web and
+//! unparseable destinations are excluded by the target parsers.
+//! Absence is `None`.
 
 use std::sync::Arc;
 
@@ -253,10 +248,12 @@ mod tests {
             },
             DocumentSnapshot {
                 url: other_url.clone(),
-                index: parse("[x](doc.md#top) and [[doc#Top]]\n"),
+                index: parse("[x](doc.md#top) and [[doc#Top]] and [no](#top) and [file](doc.md)\n"),
             },
         ];
-        // Cursor on the `# Top` heading (line 0).
+        // Cursor on the `# Top` heading (line 0). The candidate's own
+        // `[no](#top)` fragment link and its fragment-less `[file](doc.md)`
+        // target point elsewhere — they must not count.
         let locations =
             references_of(&index, &self_url, 0, 2, &documents).expect("references exist");
         assert_eq!(locations.len(), 3, "own link + 2 cross-file links");
@@ -288,6 +285,18 @@ mod tests {
             references_of(&index, &url, 6, 2, &documents_empty()).expect("usages exist");
         assert_eq!(footnote_refs.len(), 1);
         assert_eq!(footnote_refs[0].range.start.line, 4);
+        // Cursor on the `[label][ref]` reference (line 0) — answers with
+        // its definition.
+        let definition =
+            references_of(&index, &url, 0, 2, &documents_empty()).expect("definition exists");
+        assert_eq!(definition.len(), 1);
+        assert_eq!(definition[0].range.start.line, 2);
+        // Cursor on the `foot[^1]` footnote reference (line 4) — answers
+        // with its footnote definition.
+        let footnote_definition =
+            references_of(&index, &url, 4, 5, &documents_empty()).expect("definition exists");
+        assert_eq!(footnote_definition.len(), 1);
+        assert_eq!(footnote_definition[0].range.start.line, 6);
     }
 
     #[test]

@@ -113,7 +113,9 @@ restructuring the tests (owner decision), not by ledger entry.
   rule's gotcha).
 - `crates/lsp-poc/tests/fixtures/*` — links fixture gains a setext heading and a fenced
   block containing decoy links (must stay silent); a definitions fixture with known
-  ranges; diagnostics fixtures unchanged.
+  ranges; diagnostics fixtures unchanged. (Delivered 2026-09-14 as inline `parse()`
+  strings in the definitions module tests rather than a fixture file — the cases were
+  single-line micro-inputs.)
 - `crates/lsp-poc/.dupes-ignore.toml` — prune the dissolved group's entry.
 
 ## Verification

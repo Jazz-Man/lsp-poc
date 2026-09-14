@@ -1,4 +1,5 @@
 use crate::links::{self, Target};
+use crate::references::{self, DocumentSnapshot};
 use crate::workspace::{Index, Resolved};
 use crate::{definitions, diagnostics};
 use async_language_server::lsp_types::notification::PublishDiagnostics;
@@ -8,8 +9,8 @@ use async_language_server::lsp_types::{
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
     FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, MarkupContent, MarkupKind, OneOf,
-    PublishDiagnosticsParams, RelatedFullDocumentDiagnosticReport, ServerCapabilities, ServerInfo,
-    Url,
+    PublishDiagnosticsParams, ReferenceParams, RelatedFullDocumentDiagnosticReport,
+    ServerCapabilities, ServerInfo, Url,
 };
 use async_language_server::server::{DocumentMatcher, Server, ServerResult, ServerState};
 use async_language_server::tree_sitter_utils::{
@@ -55,6 +56,27 @@ impl PocLanguageServer {
         }
     }
 
+    /// Candidate documents for reference scans: open documents first,
+    /// then the workspace index's cached files (own parse per open doc —
+    /// the established POC cost).
+    fn document_snapshots(&self, state: &ServerState) -> Vec<DocumentSnapshot> {
+        let mut snapshots = Vec::new();
+        for document in state.documents() {
+            if let Some(index) = self.parse(&document.text_contents()) {
+                snapshots.push(DocumentSnapshot {
+                    url: document.url().clone(),
+                    index,
+                });
+            }
+        }
+        for (url, index) in self.files.snapshot() {
+            if !snapshots.iter().any(|snapshot| snapshot.url == url) {
+                snapshots.push(DocumentSnapshot { url, index });
+            }
+        }
+        snapshots
+    }
+
     fn compute_diagnostics(&self, state: &ServerState, url: &Url) -> Vec<Diagnostic> {
         let Some(doc) = state.document(url) else {
             return Vec::new();
@@ -91,6 +113,46 @@ impl PocLanguageServer {
         Ok(definitions::at_position(&index, &url, position, &resolve))
     }
 
+    /// Answers one `textDocument/references` request. Absence is a normal
+    /// `None`: no document, no parse, nothing reference-worthy under the
+    /// position, or zero matches.
+    fn references_at(
+        &self,
+        state: &ServerState,
+        params: &ReferenceParams,
+    ) -> ServerResult<Option<Vec<async_language_server::lsp_types::Location>>> {
+        let url = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+
+        let Some(doc) = state.document(url) else {
+            return Ok(None);
+        };
+        let text = doc.text_contents();
+        let Some(index) = self.parse(&text) else {
+            tracing::debug!("markdown parse produced no tree; no references for {url}");
+            return Ok(None);
+        };
+        let documents = self.document_snapshots(state);
+        let resolve = self.resolver(state, url);
+        let files = &self.files;
+        let resolve_from = |candidate_url: &Url, target: &Target| {
+            let open = |open_url: &Url| {
+                state
+                    .document(open_url)
+                    .and_then(|open_doc| self.parse(&open_doc.text_contents()))
+            };
+            files.resolve(&open, candidate_url, target)
+        };
+        Ok(references::at_position(
+            &index,
+            url,
+            position,
+            &documents,
+            &resolve,
+            &resolve_from,
+        ))
+    }
+
     fn publish(&self, state: &ServerState, url: &Url) {
         let params = PublishDiagnosticsParams {
             uri: url.clone(),
@@ -121,6 +183,7 @@ impl Server for PocLanguageServer {
         Some(ServerCapabilities {
             hover_provider: Some(HoverProviderCapability::Simple(true)),
             definition_provider: Some(OneOf::Left(true)),
+            references_provider: Some(OneOf::Left(true)),
             diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
                 workspace_diagnostics: false,
                 ..DiagnosticOptions::default()
@@ -178,6 +241,15 @@ impl Server for PocLanguageServer {
         params: GotoDefinitionParams,
     ) -> impl Future<Output = ServerResult<Option<GotoDefinitionResponse>>> + Send {
         ready(self.definition_at(&state, params))
+    }
+
+    fn references(
+        &self,
+        state: ServerState,
+        params: ReferenceParams,
+    ) -> impl Future<Output = ServerResult<Option<Vec<async_language_server::lsp_types::Location>>>> + Send
+    {
+        ready(self.references_at(&state, &params))
     }
 
     fn hover(

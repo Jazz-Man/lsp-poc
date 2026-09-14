@@ -20,7 +20,7 @@ Rust workspace (edition 2024, stable toolchain) with two crates forming one pipe
 
 - Built on `async-language-server` (direct dep of this crate, git rev `v0.10.0`, `tree-sitter` feature), which supplies the `Server` trait, `serve(server)` over stdio, and a document store with tree-sitter parsing — there is no hand-rolled JSON-RPC code.
 - `src/server.rs` defines `PocLanguageServer`, the central place where features live:
-  - `server_capabilities()` declares what the server supports (currently hover and diagnostics)
+  - `server_capabilities()` declares what the server supports (currently hover, diagnostics, definition, and references)
   - `server_document_matchers()` claims Markdown documents (url glob `**/*.md`, lang string `Markdown`, `tree-sitter-md` grammar)
 - Feature modules: `links/` (pure link model), `workspace/` (cross-file index), and `diagnostics/` (broken-link diagnostics) hang off `server.rs`; hover logic still lives in `server.rs` itself. `src/utils.rs` is an undeclared PHP-era leftover (a module file on disk is dead until declared in `main.rs`).
 - `src/tracing.rs`: all logs go to **stderr** because stdout is the LSP transport — never print to stdout. Level controlled by `RUST_LOG`; defaults to DEBUG in debug builds, INFO in release.
