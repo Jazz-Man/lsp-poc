@@ -72,10 +72,11 @@ deny:
 # Diagnostic sweep, never a gate; the battery never runs it. Heavy: run it
 # alone — a concurrent build poisons its auto-derived per-scenario timeout.
 # Exit code 2 means survivors were found. FILE=crates/lsp-poc/src/foo.rs
-# scopes the sweep to one file.
-## mutants: mutation-testing sweep (diagnostic, never a gate)
+# scopes the sweep to one file. Scoped to lsp-poc: mutating the zed-md-lsp
+# cdylib gains nothing and the run takes an hour+.
+## mutants: mutation-testing sweep of lsp-poc (diagnostic, never a gate)
 mutants:
-	@$(CARGO_BIN) mutants $(if $(FILE),-f $(FILE))
+	@$(CARGO_BIN) mutants -p lsp-poc $(if $(FILE),-f $(FILE))
 
 ## miri: UB interpreter over the tests (on demand, slow)
 # Never in the battery; no --no-default-features leg (no [features] yet —
