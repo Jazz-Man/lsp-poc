@@ -51,13 +51,14 @@ test:
 
 ## dylint: external lint suites (gate)
 dylint:
-	@$(CARGO_BIN) dylint --all -- --all-targets
+	@$(CARGO_BIN) dylint --all -p lsp-poc --no-deps -- --all-targets
 
 ## battery: the full pre-done gate
 battery: fmt clippy doc test dylint
 
-## build-poc: build the lsp-poc server binary (the Zed extension and the
-# Claude Code dogfood plugin launch target/debug/lsp-poc; not a gate)
+## build-poc: build the lsp-poc server binary (not a gate)
+# The Zed extension and the Claude Code dogfood plugin launch
+# target/debug/lsp-poc.
 build-poc:
 	@$(CARGO_BIN) build -p lsp-poc
 
