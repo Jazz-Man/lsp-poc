@@ -10,9 +10,6 @@ use async_language_server::tree_sitter_utils::ts_range_to_lsp_range;
 use crate::links::{self, Target, parse_destination, parse_wiki_target, slugify};
 use crate::workspace::Resolved;
 
-/// `Diagnostic::source` value for every diagnostic this server publishes.
-pub const SOURCE: &str = "lsp-poc";
-
 /// Computes every broken-link diagnostic for one parsed document.
 ///
 /// `resolve` answers cross-file targets (`Target::Doc`/`Target::Wiki`);
@@ -173,7 +170,7 @@ fn broken(code: i32, range: Range, message: String) -> Diagnostic {
         severity: Some(DiagnosticSeverity::ERROR),
         code: Some(NumberOrString::Number(code)),
         code_description: None,
-        source: Some(SOURCE.to_owned()),
+        source: Some(crate::info::server_name().to_owned()),
         message,
         related_information: None,
         tags: None,
@@ -230,7 +227,10 @@ mod tests {
         assert_eq!(codes(&diagnostics), vec![1, 3, 4, 5, 6]);
         for diagnostic in &diagnostics {
             assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::ERROR));
-            assert_eq!(diagnostic.source.as_deref(), Some(SOURCE));
+            assert_eq!(
+                diagnostic.source.as_deref(),
+                Some(crate::info::server_name())
+            );
         }
     }
 

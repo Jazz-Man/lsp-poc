@@ -23,7 +23,8 @@
 # spec has not landed yet (error and the remaining capability scopes) are
 # declared up front so the layering guards the structure as it grows;
 # links, workspace, and diagnostics landed with the 2026-09-13 cycle-1
-# spec (docs/superpowers/specs/2026-09-13-md-capabilities-cycle1-diagnostics-design.md).
+# spec (docs/superpowers/specs/2026-09-13-md-capabilities-cycle1-diagnostics-design.md);
+# info landed with the 2026-09-13 cycle-2 spec.
 # src/utils.rs is deliberately unscoped: it is an undeclared PHP-era leftover
 # pending an owner decision, outside the layer stack.
 
@@ -34,6 +35,10 @@ paths = ["src/tracing.rs"]
 [[scopes]]
 name = "error"
 paths = ["src/error.rs"]
+
+[[scopes]]
+name = "info"
+paths = ["src/info.rs"]
 
 [[scopes]]
 name = "links"
@@ -82,14 +87,20 @@ paths = ["src/server.rs"]
 [[deny-scope-dep]]
 name = "tracing-is-leaf"
 from = "tracing"
-to = ["error", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
+to = ["error", "info", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "tracing setup is a leaf; it must not know about any server machinery."
 
 [[deny-scope-dep]]
 name = "error-is-leaf"
 from = "error"
-to = ["tracing", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
+to = ["tracing", "info", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
 message = "PocError is the shared bottom; it must not depend on features or wiring."
+
+[[deny-scope-dep]]
+name = "info-is-leaf"
+from = "info"
+to = ["tracing", "error", "links", "workspace", "hovers", "code-actions", "definitions", "references", "renames", "completions", "diagnostics", "symbols", "server"]
+message = "server identity is a leaf; it must not depend on any server machinery."
 
 [[deny-scope-dep]]
 name = "links-below-features"

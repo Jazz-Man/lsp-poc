@@ -4,6 +4,7 @@
 mod definitions;
 mod diagnostics;
 mod hovers;
+mod info;
 mod links;
 mod server;
 mod tracing;

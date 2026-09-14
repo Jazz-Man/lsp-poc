@@ -115,8 +115,8 @@ impl Default for PocLanguageServer {
 impl Server for PocLanguageServer {
     fn server_info() -> Option<ServerInfo> {
         Some(ServerInfo {
-            name: env!("CARGO_PKG_NAME").to_owned(),
-            version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+            name: crate::info::server_name().to_owned(),
+            version: Some(crate::info::server_version().to_owned()),
         })
     }
 

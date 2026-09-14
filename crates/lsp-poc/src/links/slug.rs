@@ -35,29 +35,22 @@ mod tests {
     use super::slugify;
 
     #[test]
-    fn existing_fixture_slugs_are_unchanged() {
-        assert_eq!(slugify("Top"), "top");
-        assert_eq!(slugify("Setext Title"), "setext-title");
-        assert_eq!(slugify("Heading One"), "heading-one");
-    }
-
-    #[test]
-    fn unicode_headings_keep_their_letters() {
-        assert_eq!(slugify("Привіт, світ"), "привіт-світ");
-        assert_eq!(slugify("  НОТАТКИ і ідеї "), "нотатки-і-ідеї");
-    }
-
-    #[test]
-    fn punctuation_drops_and_whitespace_runs_collapse() {
-        assert_eq!(slugify("Hello, World!"), "hello-world");
-        assert_eq!(slugify("A  B"), "a-b");
-        assert_eq!(slugify("a\t\nb"), "a-b");
-    }
-
-    #[test]
-    fn edge_dashes_trim_and_underscores_survive() {
-        assert_eq!(slugify("-- x --"), "x");
-        assert_eq!(slugify("snake_case heading"), "snake_case-heading");
-        assert_eq!(slugify("   "), "");
+    fn slugify_matches_github_style_slugs() {
+        let cases = [
+            ("Top", "top"),
+            ("Setext Title", "setext-title"),
+            ("Heading One", "heading-one"),
+            ("Привіт, світ", "привіт-світ"),
+            ("  НОТАТКИ і ідеї ", "нотатки-і-ідеї"),
+            ("Hello, World!", "hello-world"),
+            ("A  B", "a-b"),
+            ("a\t\nb", "a-b"),
+            ("-- x --", "x"),
+            ("snake_case heading", "snake_case-heading"),
+            ("   ", ""),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(slugify(input), expected, "input: {input:?}");
+        }
     }
 }
