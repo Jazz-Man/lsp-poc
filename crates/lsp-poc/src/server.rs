@@ -6,9 +6,10 @@ use async_language_server::lsp_types::{
     ClientCapabilities, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
     DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams, DidOpenTextDocumentParams,
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
-    FullDocumentDiagnosticReport, Hover, HoverContents, HoverParams, HoverProviderCapability,
-    MarkupContent, MarkupKind, PublishDiagnosticsParams, RelatedFullDocumentDiagnosticReport,
-    ServerCapabilities, ServerInfo, Url,
+    FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
+    HoverContents, HoverParams, HoverProviderCapability, MarkupContent, MarkupKind, OneOf,
+    PublishDiagnosticsParams, RelatedFullDocumentDiagnosticReport, ServerCapabilities, ServerInfo,
+    Url,
 };
 use async_language_server::server::{DocumentMatcher, Server, ServerResult, ServerState};
 use async_language_server::tree_sitter_utils::{
@@ -16,9 +17,10 @@ use async_language_server::tree_sitter_utils::{
 };
 use tree_sitter_md::MarkdownParser;
 
+use crate::definitions;
 use crate::diagnostics;
 use crate::links::{self, Target};
-use crate::workspace::Index;
+use crate::workspace::{Index, Resolved};
 
 #[derive(Clone)]
 pub struct PocLanguageServer {
@@ -39,6 +41,23 @@ impl PocLanguageServer {
         links::build(&mut parser, text).map(Arc::new)
     }
 
+    /// The target resolver diagnostics and definitions share: open
+    /// documents win, then the workspace index resolves against disk.
+    fn resolver<'s>(
+        &'s self,
+        state: &'s ServerState,
+        url: &'s Url,
+    ) -> impl Fn(&Target) -> Option<Resolved> + 's {
+        move |target: &Target| {
+            let open = |open_url: &Url| {
+                state
+                    .document(open_url)
+                    .and_then(|open_doc| self.parse(&open_doc.text_contents()))
+            };
+            self.files.resolve(&open, url, target)
+        }
+    }
+
     fn compute_diagnostics(&self, state: &ServerState, url: &Url) -> Vec<Diagnostic> {
         let Some(doc) = state.document(url) else {
             return Vec::new();
@@ -48,14 +67,31 @@ impl PocLanguageServer {
             tracing::warn!("markdown parse produced no tree; skipping diagnostics for {url}");
             return Vec::new();
         };
-        let open = |open_url: &Url| {
-            state
-                .document(open_url)
-                .and_then(|open_doc| self.parse(&open_doc.text_contents()))
+        let resolve = self.resolver(state, url);
+        diagnostics::compute(&index, &resolve)
+    }
+
+    /// Answers one `textDocument/definition` request. Absence is a normal
+    /// `None`: no document, no parse, or nothing definition-worthy under
+    /// the position.
+    fn definition_at(
+        &self,
+        state: &ServerState,
+        params: GotoDefinitionParams,
+    ) -> ServerResult<Option<GotoDefinitionResponse>> {
+        let url = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        let Some(doc) = state.document(&url) else {
+            return Ok(None);
         };
-        diagnostics::compute(&index, &|target: &Target| {
-            self.files.resolve(&open, url, target)
-        })
+        let text = doc.text_contents();
+        let Some(index) = self.parse(&text) else {
+            tracing::debug!("markdown parse produced no tree; no definition for {url}");
+            return Ok(None);
+        };
+        let resolve = self.resolver(state, &url);
+        Ok(definitions::at_position(&index, &url, position, &resolve))
     }
 
     fn publish(&self, state: &ServerState, url: &Url) {
@@ -87,6 +123,7 @@ impl Server for PocLanguageServer {
     fn server_capabilities(_: ClientCapabilities) -> Option<ServerCapabilities> {
         Some(ServerCapabilities {
             hover_provider: Some(HoverProviderCapability::Simple(true)),
+            definition_provider: Some(OneOf::Left(true)),
             diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
                 workspace_diagnostics: false,
                 ..DiagnosticOptions::default()
@@ -136,6 +173,14 @@ impl Server for PocLanguageServer {
                 },
             }),
         )))
+    }
+
+    fn definition(
+        &self,
+        state: ServerState,
+        params: GotoDefinitionParams,
+    ) -> impl Future<Output = ServerResult<Option<GotoDefinitionResponse>>> + Send {
+        ready(self.definition_at(&state, params))
     }
 
     fn hover(

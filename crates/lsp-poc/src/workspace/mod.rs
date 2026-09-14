@@ -30,13 +30,6 @@ struct Entry {
 pub enum Resolved {
     /// The target file exists (or is open); its URL and index are attached.
     Found {
-        #[cfg_attr(
-            not(test),
-            expect(
-                dead_code,
-                reason = "returned by definition routing from cycle 2 (textDocument/definition) onward"
-            )
-        )]
         url: Url,
         index: Arc<links::MdIndex>,
     },

@@ -19,13 +19,6 @@ use crate::workspace::Resolved;
 /// Answers the definition target for the item under `position`, or `None`
 /// when nothing definition-worthy is under it or the target does not
 /// resolve. First matching item in collection order wins.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed from cycle 2 (textDocument/definition) onward"
-    )
-)]
 #[must_use]
 pub fn at_position(
     index: &links::MdIndex,
@@ -41,7 +34,11 @@ pub fn at_position(
         let target = parse_destination(&link.destination)?;
         return route(index, self_url, &target, resolve);
     }
-    if let Some(reference) = index.references().iter().find(|r| at(r.range)) {
+    // Footnote and wikilink shapes surface as reference labels; their own
+    // arms below own them.
+    if let Some(reference) = index.references().iter().find(|r| at(r.range))
+        && !reference.label.starts_with(['^', '['])
+    {
         let definition = index
             .definitions()
             .iter()
@@ -69,16 +66,10 @@ pub fn at_position(
     None
 }
 
-/// Routes a parsed target to its `Location`: fragments land on the own
-/// document's first matching heading, file targets on the resolved
-/// document's heading (or the file start when no fragment is given).
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "serves at_position; consumed from cycle 2 (textDocument/definition) onward"
-    )
-)]
+/// Routes a parsed target to its `Location`: own-document fragments land
+/// on the first matching heading; file and wikilink targets land on the
+/// resolved document's matching heading — or, with no fragment, its first
+/// heading, or the document start when it has no headings.
 fn route(
     index: &links::MdIndex,
     self_url: &Url,
@@ -111,24 +102,10 @@ fn route(
 }
 
 /// First heading whose slug matches, in document order.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "serves at_position; consumed from cycle 2 (textDocument/definition) onward"
-    )
-)]
 fn heading_by_slug<'a>(index: &'a links::MdIndex, slug: &str) -> Option<&'a links::Heading> {
     index.headings().iter().find(|heading| heading.slug == slug)
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "serves at_position; consumed from cycle 2 (textDocument/definition) onward"
-    )
-)]
 fn scalar(url: &Url, range: async_language_server::tree_sitter::Range) -> GotoDefinitionResponse {
     GotoDefinitionResponse::Scalar(Location {
         uri: url.clone(),
@@ -137,13 +114,6 @@ fn scalar(url: &Url, range: async_language_server::tree_sitter::Range) -> GotoDe
 }
 
 /// The document-start range, for file targets without a fragment.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "serves at_position; consumed from cycle 2 (textDocument/definition) onward"
-    )
-)]
 fn zero_range() -> async_language_server::tree_sitter::Range {
     async_language_server::tree_sitter::Range {
         start_byte: 0,
@@ -238,8 +208,22 @@ mod tests {
             )
             .is_none(),
         );
-        // Plain text under the cursor is not definition-worthy either.
+        // Cursor on the link itself with a None-resolver: the target
+        // parses, but route's unresolved arm answers None.
         let no_resolve = |_: &Target| -> Option<Resolved> { None };
+        assert!(
+            at_position(
+                &index,
+                &url,
+                LspPosition {
+                    line: 0,
+                    character: 3
+                },
+                &no_resolve,
+            )
+            .is_none(),
+        );
+        // Plain text under the cursor is not definition-worthy either.
         assert!(
             at_position(
                 &index,

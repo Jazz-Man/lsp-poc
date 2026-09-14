@@ -37,17 +37,10 @@ pub struct Heading {
         not(test),
         expect(
             dead_code,
-            reason = "heading depth is consumed from cycle 2 (symbols/ToC) onward"
+            reason = "heading depth is consumed from cycle 6 (symbols/ToC) onward"
         )
     )]
     pub level: u8,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
-        )
-    )]
     pub range: Range,
 }
 
@@ -57,16 +50,9 @@ pub struct Definition {
     pub label: String,
     #[expect(
         dead_code,
-        reason = "definition destinations ride along for later cycle-2 capabilities"
+        reason = "definition destinations ride along for cycle-5 completion"
     )]
     pub destination: String,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
-        )
-    )]
     pub range: Range,
 }
 
@@ -74,13 +60,6 @@ pub struct Definition {
 #[derive(Debug)]
 pub struct FootnoteDefinition {
     pub id: String,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
-        )
-    )]
     pub range: Range,
 }
 
@@ -150,37 +129,16 @@ impl MdIndex {
         &self.wikilinks
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
-        )
-    )]
     #[must_use]
     pub fn headings(&self) -> &[Heading] {
         &self.headings
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
-        )
-    )]
     #[must_use]
     pub fn definitions(&self) -> &[Definition] {
         &self.definitions
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
-        )
-    )]
     #[must_use]
     pub fn footnote_definitions(&self) -> &[FootnoteDefinition] {
         &self.footnote_definitions

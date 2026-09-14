@@ -88,6 +88,17 @@ footnote reference / wikilink → target `Location`.
   `cargo dupes cleanup` (dry-run first), never left rotting.
 - Roadmap stays: cycle 3 = references.
 
+**(Amended 2026-09-14 during execution — owner additions, yielding to the surgical
+constraint where it bites):** (1) an identity module `src/info.rs` holds
+`server_name()`/`server_version()`; `ServerInfo` and `Diagnostic::source` both consume
+it — the hardcoded `SOURCE` const disappears (no `DIAGNOSTIC_SOURCE` constant: the
+owner rejected the intermediate const — diagnostics calls `server_name()` directly);
+this requires an `info` scope (leaf) in `arch-lint.toml`, so "arch-lint.toml scopes
+untouched" above yields for this one addition; (2) `make mutants` is scoped to
+`lsp-poc` at the Makefile (`-p lsp-poc` — mutating the zed-md-lsp cdylib gains
+nothing, run takes an hour+); (3) the slug.rs test duplication dissolves by
+restructuring the tests (owner decision), not by ledger entry.
+
 ## Changes
 
 - `crates/lsp-poc/src/links/mod.rs` — code-range collection + inline-tree filtering,
