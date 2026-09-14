@@ -119,7 +119,9 @@ needed, only a header-comment refresh.)
   `did_change_workspace_folders` (root reset), `document_diagnostics` (pull parity);
   `PocLanguageServer` gains its own parser Mutex and the `workspace::Index`; the
   `Debug, Clone` derives are dropped (no framework user needs them, the new fields
-  aren't `Clone`).
+  aren't `Clone`). (Corrected 2026-09-13 during execution: `serve` at the pinned rev
+  bounds `S: Server + Clone` — `Clone` was restored via `Arc<Mutex<MarkdownParser>>` +
+  `Arc<Index>` fields; `Debug` stays dropped.)
 - `crates/lsp-poc/src/main.rs` — `mod diagnostics; mod links; mod workspace;` declared
   in the same change (structure rule's module gotcha).
 - Docs: `CLAUDE.md` (capability + feature-module lines), `product.md` (cross-file

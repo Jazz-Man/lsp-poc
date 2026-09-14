@@ -7,7 +7,8 @@
 //! link-reference-definitions (with a paragraph fallback), references and
 //! wikilinks are byte scans over inline text. Known limitation: those
 //! scans also match shapes inside code spans — the grammars give no
-//! cheaper boundary; refine when a cycle needs it.
+//! cheaper boundary; refine when a cycle needs it. Headings are ATX
+//! (`#`) only; setext underlines are not collected — cycle 2.
 
 use async_language_server::tree_sitter::{Node, Point, Range};
 use tree_sitter_md::MarkdownParser;
