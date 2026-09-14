@@ -1,0 +1,11 @@
+[[ignore]]
+fingerprint = "1e9278cc0fc61a15"
+reason = "LSP hook pair: did_open/did_change both delegate to publish(); params differ, bodies intentionally identical"
+
+[[ignore]]
+fingerprint = "4bdf42868ea34aef"
+reason = "Symmetric index accessors over two Vec<String> fields; a shared helper adds indirection for 3-line bodies"
+
+[[ignore]]
+fingerprint = "913ec9f4bb27c7eb"
+reason = "Parallel test closures returning Found stubs; differ only in fixture text, kept symmetric for readability"
