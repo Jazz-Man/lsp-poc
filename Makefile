@@ -20,7 +20,7 @@ MIRI_TOOLCHAIN ?= nightly-2026-09-08
 TARGET := x86_64-apple-darwin
 
 .DEFAULT_GOAL := help
-.PHONY: help fmt fmt-fix clippy doc test dylint battery dupes deny mutants miri miri-setup
+.PHONY: help fmt fmt-fix clippy doc test dylint battery build-poc dupes deny mutants miri miri-setup
 
 ## help: list available targets
 help:
@@ -55,6 +55,11 @@ dylint:
 
 ## battery: the full pre-done gate
 battery: fmt clippy doc test dylint
+
+## build-poc: build the lsp-poc server binary (the Zed extension and the
+# Claude Code dogfood plugin launch target/debug/lsp-poc; not a gate)
+build-poc:
+	@$(CARGO_BIN) build -p lsp-poc
 
 ## dupes: duplication check (on demand)
 dupes:
