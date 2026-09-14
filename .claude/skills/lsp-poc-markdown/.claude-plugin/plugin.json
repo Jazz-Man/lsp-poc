@@ -1,0 +1,5 @@
+{
+	"name": "lsp-poc-markdown",
+	"version": "0.1.0",
+	"description": "Markdown LSP via the lsp-poc POC server so Claude Code can dogfood it"
+}

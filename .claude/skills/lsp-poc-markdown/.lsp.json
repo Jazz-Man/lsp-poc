@@ -1,0 +1,8 @@
+{
+	"markdown": {
+		"command": "/Users/vasilsokolik/www/lsp-poc/target/debug/lsp-poc",
+		"args": [],
+		"extensionToLanguage": { ".md": "Markdown" },
+		"transport": "stdio"
+	}
+}
