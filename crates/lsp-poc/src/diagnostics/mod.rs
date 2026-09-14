@@ -57,7 +57,10 @@ fn check_links(
                     link.range,
                     format!("link to non-existent file `{path}`"),
                 )),
-                Some(Resolved::Found(target_index)) => {
+                Some(Resolved::Found {
+                    index: target_index,
+                    ..
+                }) => {
                     check_target_heading(
                         diagnostics,
                         &target_index,
@@ -94,7 +97,10 @@ fn check_wikilinks(
                 wikilink.range,
                 format!("wikilink to non-existent target `{path}`"),
             )),
-            Some(Resolved::Found(target_index)) => {
+            Some(Resolved::Found {
+                index: target_index,
+                ..
+            }) => {
                 check_target_heading(
                     diagnostics,
                     &target_index,
@@ -181,6 +187,8 @@ mod tests {
     use std::sync::Arc;
     use tree_sitter_md::MarkdownParser;
 
+    use async_language_server::lsp_types::Url;
+
     use crate::links::MdIndex;
 
     fn fixture_text(name: &str) -> String {
@@ -229,7 +237,12 @@ mod tests {
     #[test]
     fn heading_in_existing_file_is_code_two() {
         let index = parse("[f](real.md#nope)\n");
-        let resolve = |_: &Target| Some(Resolved::Found(Arc::new(parse("# Other\n"))));
+        let resolve = |_: &Target| {
+            Some(Resolved::Found {
+                url: Url::parse("file:///target.md").expect("url parses"),
+                index: Arc::new(parse("# Other\n")),
+            })
+        };
         let diagnostics = compute(&index, &resolve);
         assert_eq!(codes(&diagnostics), vec![2]);
         assert!(diagnostics[0].message.contains("real.md"));
@@ -238,7 +251,12 @@ mod tests {
     #[test]
     fn valid_targets_stay_silent() {
         let index = fixture("valid-links.md");
-        let resolve = |_: &Target| Some(Resolved::Found(Arc::new(parse("# Top\n"))));
+        let resolve = |_: &Target| {
+            Some(Resolved::Found {
+                url: Url::parse("file:///target.md").expect("url parses"),
+                index: Arc::new(parse("# Top\n")),
+            })
+        };
         let diagnostics = compute(&index, &resolve);
         assert!(diagnostics.is_empty(), "got: {diagnostics:?}");
     }

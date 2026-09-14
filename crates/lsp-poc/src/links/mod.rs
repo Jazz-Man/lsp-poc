@@ -20,15 +20,16 @@ use tree_sitter_md::MarkdownParser;
 #[derive(Debug, Default)]
 pub struct MdIndex {
     headings: Vec<Heading>,
-    definitions: Vec<String>,
+    definitions: Vec<Definition>,
     links: Vec<Link>,
     references: Vec<Reference>,
     footnote_references: Vec<FootnoteReference>,
-    footnote_definitions: Vec<String>,
+    footnote_definitions: Vec<FootnoteDefinition>,
     wikilinks: Vec<Wikilink>,
 }
 
-/// A heading, reduced to what matching needs: its anchor slug and depth.
+/// A heading: its anchor slug, depth, and document range (first match by
+/// slug wins for definition routing).
 #[derive(Debug)]
 pub struct Heading {
     pub slug: String,
@@ -40,6 +41,47 @@ pub struct Heading {
         )
     )]
     pub level: u8,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
+        )
+    )]
+    pub range: Range,
+}
+
+/// A link reference definition: `[label]: destination`.
+#[derive(Debug)]
+pub struct Definition {
+    pub label: String,
+    #[expect(
+        dead_code,
+        reason = "definition destinations ride along for later cycle-2 capabilities"
+    )]
+    pub destination: String,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
+        )
+    )]
+    pub range: Range,
+}
+
+/// A footnote definition `[^id]: text`.
+#[derive(Debug)]
+pub struct FootnoteDefinition {
+    pub id: String,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
+        )
+    )]
+    pub range: Range,
 }
 
 /// An inline link `[text](destination)` (images are not collected in cycle 1).
@@ -108,6 +150,42 @@ impl MdIndex {
         &self.wikilinks
     }
 
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
+        )
+    )]
+    #[must_use]
+    pub fn headings(&self) -> &[Heading] {
+        &self.headings
+    }
+
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
+        )
+    )]
+    #[must_use]
+    pub fn definitions(&self) -> &[Definition] {
+        &self.definitions
+    }
+
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "read by definition routing from cycle 2 (textDocument/definition) onward"
+        )
+    )]
+    #[must_use]
+    pub fn footnote_definitions(&self) -> &[FootnoteDefinition] {
+        &self.footnote_definitions
+    }
+
     #[must_use]
     pub fn has_heading_slug(&self, slug: &str) -> bool {
         self.headings.iter().any(|heading| heading.slug == slug)
@@ -115,12 +193,12 @@ impl MdIndex {
 
     #[must_use]
     pub fn has_definition(&self, label: &str) -> bool {
-        self.definitions.iter().any(|known| known == label)
+        self.definitions.iter().any(|known| known.label == label)
     }
 
     #[must_use]
     pub fn has_footnote_definition(&self, id: &str) -> bool {
-        self.footnote_definitions.iter().any(|known| known == id)
+        self.footnote_definitions.iter().any(|known| known.id == id)
     }
 }
 
@@ -238,6 +316,7 @@ fn push_heading(heading: Node, text: &str, level: u8, index: &mut MdIndex) {
     index.headings.push(Heading {
         slug: slugify(raw),
         level,
+        range: heading.range(),
     });
 }
 
@@ -271,13 +350,24 @@ fn collect_definition(definition: Node, text: &str, index: &mut MdIndex) {
         return;
     };
     let label = normalize_label(&raw);
+    let destination = definition
+        .children(&mut cursor)
+        .find(|child| child.kind() == "link_destination")
+        .and_then(|child| clean_destination(child, text));
     if let Some(id) = label.strip_prefix('^') {
         if !id.is_empty() {
-            index.footnote_definitions.push(id.to_owned());
+            index.footnote_definitions.push(FootnoteDefinition {
+                id: id.to_owned(),
+                range: definition.range(),
+            });
         }
         return;
     }
-    index.definitions.push(label);
+    index.definitions.push(Definition {
+        label,
+        destination: destination.unwrap_or_default(),
+        range: definition.range(),
+    });
 }
 
 /// Fallback footnote-definition detection for the case the block grammar
@@ -303,7 +393,10 @@ fn collect_footnote_definition_from_paragraph(paragraph: Node, text: &str, index
     if !after.starts_with(':') || id.is_empty() {
         return;
     }
-    index.footnote_definitions.push(normalize_label(id));
+    index.footnote_definitions.push(FootnoteDefinition {
+        id: normalize_label(id),
+        range: paragraph.range(),
+    });
 }
 
 fn collect_inline(root: Node, text: &str, index: &mut MdIndex, spans: &mut Vec<Range>) {

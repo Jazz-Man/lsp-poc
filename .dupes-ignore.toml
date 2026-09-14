@@ -3,9 +3,13 @@ fingerprint = "1e9278cc0fc61a15"
 reason = "LSP hook pair: did_open/did_change both delegate to publish(); params differ, bodies intentionally identical"
 
 [[ignore]]
-fingerprint = "4bdf42868ea34aef"
-reason = "Symmetric index accessors over two Vec<String> fields; a shared helper adds indirection for 3-line bodies"
+fingerprint = "4de6e0216f45997f"
+reason = "Parallel has_* membership predicates over model fields; a shared generic adds indirection for 3-line bodies"
 
 [[ignore]]
-fingerprint = "913ec9f4bb27c7eb"
-reason = "Parallel test closures returning Found stubs; differ only in fixture text, kept symmetric for readability"
+fingerprint = "54ef68fb04420a90"
+reason = "Parallel test resolve stubs answering a canned Resolved; differ only in the answer, kept symmetric for readability"
+
+[[ignore]]
+fingerprint = "c02e0695c43c674d"
+reason = "Identical 3-line test parse helpers; each module's tests stand alone, no shared test-support module"

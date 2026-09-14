@@ -28,8 +28,18 @@ struct Entry {
 /// What a resolved target turned out to be.
 #[derive(Debug)]
 pub enum Resolved {
-    /// The target file exists (or is open); its index is attached.
-    Found(Arc<links::MdIndex>),
+    /// The target file exists (or is open); its URL and index are attached.
+    Found {
+        #[cfg_attr(
+            not(test),
+            expect(
+                dead_code,
+                reason = "returned by definition routing from cycle 2 (textDocument/definition) onward"
+            )
+        )]
+        url: Url,
+        index: Arc<links::MdIndex>,
+    },
     /// No candidate path exists.
     Missing,
 }
@@ -104,10 +114,16 @@ impl Index {
                 continue;
             };
             if let Some(index) = open(&url) {
-                return Resolved::Found(index);
+                return Resolved::Found {
+                    url: url.clone(),
+                    index,
+                };
             }
             if let Some(index) = self.load_from_disk(&url, path) {
-                return Resolved::Found(index);
+                return Resolved::Found {
+                    url: url.clone(),
+                    index,
+                };
             }
         }
         Resolved::Missing
@@ -244,7 +260,7 @@ mod tests {
             &doc_url,
             &parse_destination("b.md").expect("target"),
         );
-        assert!(matches!(relative, Some(Resolved::Found(_))));
+        assert!(matches!(relative, Some(Resolved::Found { .. })));
 
         assert!(matches!(
             index.resolve(
@@ -273,7 +289,7 @@ mod tests {
                     fragment: None
                 },
             ),
-            Some(Resolved::Found(_)),
+            Some(Resolved::Found { .. }),
         ));
         assert!(matches!(
             index.resolve(
@@ -305,7 +321,7 @@ mod tests {
         };
 
         let index = Index::new();
-        let Some(Resolved::Found(found)) = index.resolve(
+        let Some(Resolved::Found { index: found, .. }) = index.resolve(
             &open,
             &doc_url,
             &parse_destination("doc.md#open-only").expect("target"),
