@@ -13,3 +13,7 @@ reason = "Parallel test resolve stubs answering a canned Resolved; differ only i
 [[ignore]]
 fingerprint = "c02e0695c43c674d"
 reason = "Identical 3-line test parse helpers; each module's tests stand alone, no shared test-support module"
+
+[[ignore]]
+fingerprint = "ac8fe8cb1f288bf4"
+reason = "Parallel definition route-cell tests answering a canned resolver; differ only in input and expectation, kept symmetric for readability"

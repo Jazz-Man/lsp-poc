@@ -9,11 +9,11 @@
 use async_language_server::lsp_types::{
     GotoDefinitionResponse, Location, Position as LspPosition, Url,
 };
-use async_language_server::tree_sitter_utils::{
-    ts_range_contains_lsp_position, ts_range_to_lsp_range,
-};
+use async_language_server::tree_sitter_utils::ts_range_to_lsp_range;
 
-use crate::links::{self, Target, parse_destination, parse_wiki_target, slugify};
+use crate::links::{
+    self, CursorItem, Target, item_at, parse_destination, parse_wiki_target, slugify,
+};
 use crate::workspace::Resolved;
 
 /// Answers the definition target for the item under `position`, or `None`
@@ -26,47 +26,38 @@ pub fn at_position(
     position: LspPosition,
     resolve: &dyn Fn(&Target) -> Option<Resolved>,
 ) -> Option<GotoDefinitionResponse> {
-    let at = |range: async_language_server::tree_sitter::Range| {
-        ts_range_contains_lsp_position(range, position)
-    };
-
-    if let Some(link) = index.links().iter().find(|link| at(link.range)) {
-        let target = parse_destination(&link.destination)?;
-        return route(index, self_url, &target, resolve);
+    match item_at(index, position) {
+        Some(CursorItem::Link(link)) => {
+            let target = parse_destination(&link.destination)?;
+            route(index, self_url, &target, resolve)
+        }
+        // Footnote and wikilink shapes surface as reference labels; the
+        // guard sends them to their own arms.
+        Some(CursorItem::Reference(reference)) if !reference.label.starts_with(['^', '[']) => {
+            let definition = index
+                .definitions()
+                .iter()
+                .find(|definition| definition.label == reference.label)?;
+            Some(scalar(self_url, definition.range))
+        }
+        Some(CursorItem::FootnoteReference(footnote)) => {
+            let definition = index
+                .footnote_definitions()
+                .iter()
+                .find(|definition| definition.id == footnote.id)?;
+            Some(scalar(self_url, definition.range))
+        }
+        Some(CursorItem::Wikilink(wikilink)) => {
+            let target = parse_wiki_target(&wikilink.target)?;
+            let Target::Wiki { .. } = &target else {
+                return None;
+            };
+            route(index, self_url, &target, resolve)
+        }
+        // Headings, definitions, and footnote definitions have no
+        // definition of their own.
+        _ => None,
     }
-    // Footnote and wikilink shapes surface as reference labels; their own
-    // arms below own them.
-    if let Some(reference) = index
-        .references()
-        .iter()
-        .find(|reference| at(reference.range))
-        && !reference.label.starts_with(['^', '['])
-    {
-        let definition = index
-            .definitions()
-            .iter()
-            .find(|definition| definition.label == reference.label)?;
-        return Some(scalar(self_url, definition.range));
-    }
-    if let Some(footnote) = index
-        .footnote_references()
-        .iter()
-        .find(|footnote| at(footnote.range))
-    {
-        let definition = index
-            .footnote_definitions()
-            .iter()
-            .find(|definition| definition.id == footnote.id)?;
-        return Some(scalar(self_url, definition.range));
-    }
-    if let Some(wikilink) = index.wikilinks().iter().find(|wikilink| at(wikilink.range)) {
-        let target = parse_wiki_target(&wikilink.target)?;
-        let Target::Wiki { .. } = &target else {
-            return None;
-        };
-        return route(index, self_url, &target, resolve);
-    }
-    None
 }
 
 /// Routes a parsed target to its `Location`: own-document fragments land
@@ -81,7 +72,7 @@ fn route(
 ) -> Option<GotoDefinitionResponse> {
     match target {
         Target::Fragment(fragment) => {
-            let heading = heading_by_slug(index, &slugify(fragment))?;
+            let heading = index.heading_by_slug(&slugify(fragment))?;
             Some(scalar(self_url, heading.range))
         }
         Target::Doc { fragment, .. } | Target::Wiki { fragment, .. } => {
@@ -93,7 +84,7 @@ fn route(
                 return None;
             };
             let range = match fragment {
-                Some(fragment) => heading_by_slug(&target_index, &slugify(fragment))?.range,
+                Some(fragment) => target_index.heading_by_slug(&slugify(fragment))?.range,
                 None => target_index
                     .headings()
                     .first()
@@ -102,11 +93,6 @@ fn route(
             Some(scalar(&url, range))
         }
     }
-}
-
-/// First heading whose slug matches, in document order.
-fn heading_by_slug<'a>(index: &'a links::MdIndex, slug: &str) -> Option<&'a links::Heading> {
-    index.headings().iter().find(|heading| heading.slug == slug)
 }
 
 fn scalar(url: &Url, range: async_language_server::tree_sitter::Range) -> GotoDefinitionResponse {
@@ -241,5 +227,31 @@ mod tests {
             )
             .is_none(),
         );
+    }
+
+    #[test]
+    fn wikilink_route_lands_on_the_target_document() {
+        let url = Url::parse("file:///doc.md").expect("url parses");
+        let index = parse("see [[other#target]]\n");
+        let location = location_of(&index, &url, 0, 6).expect("wikilink resolves");
+        assert_eq!(
+            location.uri.as_str(),
+            "file:///target.md",
+            "the stub resolver's document",
+        );
+        assert_eq!(location.range.start.line, 0, "the # Target heading");
+    }
+
+    #[test]
+    fn fragment_less_file_target_lands_on_the_first_heading() {
+        let url = Url::parse("file:///doc.md").expect("url parses");
+        let index = parse("see [f](other.md)\n");
+        let location = location_of(&index, &url, 0, 8).expect("file target resolves");
+        assert_eq!(
+            location.uri.as_str(),
+            "file:///target.md",
+            "the stub resolver's document",
+        );
+        assert_eq!(location.range.start.line, 0, "its first heading");
     }
 }

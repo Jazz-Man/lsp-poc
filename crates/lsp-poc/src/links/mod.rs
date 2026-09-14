@@ -13,7 +13,9 @@
 
 mod slug;
 
+use async_language_server::lsp_types::Position as LspPosition;
 use async_language_server::tree_sitter::{Node, Point, Range};
+use async_language_server::tree_sitter_utils::ts_range_contains_lsp_position;
 use tree_sitter_md::MarkdownParser;
 
 /// Everything the diagnostics need to know about one parsed document.
@@ -108,6 +110,37 @@ pub enum Target {
     },
 }
 
+/// The model item whose range contains a cursor position.
+#[derive(Debug)]
+pub enum CursorItem<'a> {
+    /// A heading.
+    #[expect(
+        dead_code,
+        reason = "heading payload rides along for cycle-3 references"
+    )]
+    Heading(&'a Heading),
+    /// An inline link.
+    Link(&'a Link),
+    /// A reference link's label.
+    Reference(&'a Reference),
+    /// A link reference definition.
+    #[expect(
+        dead_code,
+        reason = "definition payload rides along for cycle-3 references"
+    )]
+    Definition(&'a Definition),
+    /// A footnote reference.
+    FootnoteReference(&'a FootnoteReference),
+    /// A footnote definition.
+    #[expect(
+        dead_code,
+        reason = "footnote-definition payload rides along for cycle-3 references"
+    )]
+    FootnoteDefinition(&'a FootnoteDefinition),
+    /// A wikilink.
+    Wikilink(&'a Wikilink),
+}
+
 impl MdIndex {
     #[must_use]
     pub fn links(&self) -> &[Link] {
@@ -157,6 +190,12 @@ impl MdIndex {
     #[must_use]
     pub fn has_footnote_definition(&self, id: &str) -> bool {
         self.footnote_definitions.iter().any(|known| known.id == id)
+    }
+
+    /// First heading whose slug matches, in document order.
+    #[must_use]
+    pub fn heading_by_slug(&self, slug: &str) -> Option<&Heading> {
+        self.headings.iter().find(|heading| heading.slug == slug)
     }
 }
 
@@ -597,10 +636,56 @@ fn walk(node: Node, visit: &mut dyn FnMut(Node)) {
     }
 }
 
+/// The model item whose range contains `position`, searched in a fixed
+/// order: links, footnote references, references, definitions, wikilinks,
+/// footnote definitions, headings. Footnote references precede references
+/// so a `[text][^1]` cursor routes to the footnote side, as the cycle-2
+/// fall-through did; wikilinks precede footnote definitions so the more
+/// specific item wins inside a footnote paragraph.
+#[must_use]
+pub fn item_at(index: &MdIndex, position: LspPosition) -> Option<CursorItem<'_>> {
+    let at = |range: Range| ts_range_contains_lsp_position(range, position);
+    if let Some(link) = index.links.iter().find(|link| at(link.range)) {
+        return Some(CursorItem::Link(link));
+    }
+    if let Some(footnote) = index
+        .footnote_references
+        .iter()
+        .find(|footnote| at(footnote.range))
+    {
+        return Some(CursorItem::FootnoteReference(footnote));
+    }
+    if let Some(reference) = index
+        .references
+        .iter()
+        .find(|reference| at(reference.range))
+    {
+        return Some(CursorItem::Reference(reference));
+    }
+    if let Some(definition) = index.definitions.iter().find(|def| at(def.range)) {
+        return Some(CursorItem::Definition(definition));
+    }
+    if let Some(wikilink) = index.wikilinks.iter().find(|wikilink| at(wikilink.range)) {
+        return Some(CursorItem::Wikilink(wikilink));
+    }
+    if let Some(definition) = index
+        .footnote_definitions
+        .iter()
+        .find(|definition| at(definition.range))
+    {
+        return Some(CursorItem::FootnoteDefinition(definition));
+    }
+    if let Some(heading) = index.headings.iter().find(|heading| at(heading.range)) {
+        return Some(CursorItem::Heading(heading));
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        MarkdownParser, MdIndex, Target, build, parse_destination, parse_wiki_target, slugify,
+        CursorItem, LspPosition, MarkdownParser, MdIndex, Target, build, item_at,
+        parse_destination, parse_wiki_target, slugify,
     };
 
     /// Absolute path of a shared fixture document.
@@ -618,6 +703,21 @@ mod tests {
     fn fixture() -> MdIndex {
         let mut parser = MarkdownParser::default();
         build(&mut parser, &fixture_text()).expect("fixture parses")
+    }
+
+    /// The item under `position`, flattened to its variant name so tests
+    /// can assert the kind with flat comparisons.
+    fn kind_at(index: &MdIndex, position: LspPosition) -> Option<&'static str> {
+        match item_at(index, position) {
+            Some(CursorItem::Heading(_)) => Some("Heading"),
+            Some(CursorItem::Link(_)) => Some("Link"),
+            Some(CursorItem::Reference(_)) => Some("Reference"),
+            Some(CursorItem::Definition(_)) => Some("Definition"),
+            Some(CursorItem::FootnoteReference(_)) => Some("FootnoteReference"),
+            Some(CursorItem::FootnoteDefinition(_)) => Some("FootnoteDefinition"),
+            Some(CursorItem::Wikilink(_)) => Some("Wikilink"),
+            None => None,
+        }
     }
 
     #[test]
@@ -804,5 +904,36 @@ mod tests {
             lazy.range.start_byte - line_start,
             "continuation-line column is the offset within its own line",
         );
+    }
+
+    #[test]
+    fn item_at_locates_each_kind_and_misses_plain_text() {
+        let index = fixture();
+        // The needle's first byte, read back from the fixture text as a
+        // UTF-8 (line, byte column) position so the test survives edits.
+        let at = |needle: &str| {
+            let text = fixture_text();
+            let offset = text.find(needle).expect("needle present");
+            let line = text[..offset].matches('\n').count();
+            let line_start = text[..offset].rfind('\n').map_or(0, |i| i + 1);
+            LspPosition {
+                line: u32::try_from(line).expect("line fits"),
+                character: u32::try_from(offset - line_start).expect("column fits"),
+            }
+        };
+
+        assert_eq!(kind_at(&index, at("# Top")), Some("Heading"));
+        assert_eq!(kind_at(&index, at("[docs](guide.md)")), Some("Link"));
+        assert_eq!(kind_at(&index, at("[^1] here")), Some("FootnoteReference"));
+        assert_eq!(kind_at(&index, at("[collapsed][]")), Some("Reference"));
+        assert_eq!(kind_at(&index, at("[ref]: https")), Some("Definition"));
+        assert_eq!(
+            kind_at(&index, at("[^1]: footnote")),
+            Some("FootnoteDefinition"),
+        );
+        assert_eq!(kind_at(&index, at("[[Other]]")), Some("Wikilink"));
+        // `See` opens a plain sentence — nothing reference- or
+        // definition-worthy under it.
+        assert_eq!(kind_at(&index, at("See")), None);
     }
 }
