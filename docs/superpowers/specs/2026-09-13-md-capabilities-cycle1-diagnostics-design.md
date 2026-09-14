@@ -141,6 +141,9 @@ needed, only a header-comment refresh.)
 7. **code actions** — create/update ToC (`<!--toc:start-->`/`<!--toc:end-->` markers)
    and **table column actions** (insert left/right, delete — our own, upstream TODO).
 8. **hover upgrade** — heading outline, link target preview, ref/footnote definitions.
+9. **folding** — `folding_range` (owner addition, 2026-09-14; the trait method exists at
+   the pinned rev). Own spec when its turn comes: foldable regions from the model's
+   sections/headings and fenced blocks.
 
 **Future considerations (parked, not designed):** workspace-pull diagnostics flag and
 framework walker reuse; upstream `workspace_roots()` accessor + deliberate rev bump;

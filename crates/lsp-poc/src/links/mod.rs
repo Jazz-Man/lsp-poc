@@ -8,8 +8,8 @@
 //! wikilinks are byte scans over inline text. Code regions are excluded:
 //! fenced and indented code blocks suppress their inline trees entirely,
 //! and off-tree scans skip `code_span` windows — example links in
-//! documentation produce no shapes. Headings are ATX
-//! (`#`) only; setext underlines are not collected — cycle 2.
+//! documentation produce no shapes. Headings come in both ATX (`#`) and
+//! setext (underlined) forms.
 
 use async_language_server::tree_sitter::{Node, Point, Range};
 use tree_sitter_md::MarkdownParser;
@@ -206,7 +206,18 @@ fn normalize_label(label: &str) -> String {
 
 fn collect_block(node: Node, text: &str, index: &mut MdIndex, code: &mut Vec<Range>) {
     match node.kind() {
-        "atx_heading" => collect_heading(node, text, index),
+        "atx_heading" | "setext_heading" => {
+            let mut cursor = node.walk();
+            if let Some(level) = node
+                .children(&mut cursor)
+                .find(|child| {
+                    child.kind().starts_with("atx_h") || child.kind().starts_with("setext_h")
+                })
+                .and_then(|marker| heading_level(&marker))
+            {
+                push_heading(node, text, level, index);
+            }
+        }
         "link_reference_definition" => collect_definition(node, text, index),
         "paragraph" => collect_footnote_definition_from_paragraph(node, text, index),
         "fenced_code_block" | "indented_code_block" => code.push(node.range()),
@@ -218,18 +229,10 @@ fn collect_block(node: Node, text: &str, index: &mut MdIndex, code: &mut Vec<Ran
     }
 }
 
-fn collect_heading(heading: Node, text: &str, index: &mut MdIndex) {
+/// Pushes a heading (ATX or setext — the node carries the same
+/// `heading_content` field) into the index.
+fn push_heading(heading: Node, text: &str, level: u8, index: &mut MdIndex) {
     let Some(content) = heading.child_by_field_name("heading_content") else {
-        return;
-    };
-    let mut cursor = heading.walk();
-    let Some(marker) = heading
-        .children(&mut cursor)
-        .find(|child| child.kind().starts_with("atx_h"))
-    else {
-        return;
-    };
-    let Some(level) = heading_level(&marker) else {
         return;
     };
     let Ok(raw) = content.utf8_text(text.as_bytes()) else {
@@ -241,13 +244,18 @@ fn collect_heading(heading: Node, text: &str, index: &mut MdIndex) {
     });
 }
 
+/// Level from the marker/underline child: `atx_h1_marker` → 1,
+/// `setext_h2_underline` → 2.
 fn heading_level(marker: &Node) -> Option<u8> {
-    marker
-        .kind()
-        .strip_prefix("atx_h")?
-        .strip_suffix("_marker")?
-        .parse()
-        .ok()
+    let kind = marker.kind();
+    let digit = kind
+        .strip_prefix("atx_h")
+        .and_then(|rest| rest.strip_suffix("_marker"))
+        .or_else(|| {
+            kind.strip_prefix("setext_h")
+                .and_then(|rest| rest.strip_suffix("_underline"))
+        })?;
+    digit.parse().ok()
 }
 
 /// A link reference definition. One whose label starts with `^` is a
@@ -479,9 +487,17 @@ fn scan_range(base: (usize, Point), source: &str, start: usize, len: usize) -> R
     let before = &source[..start];
     let rows = before.matches('\n').count();
     let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    let column = if rows == 0 {
+        base.1.column + start
+    } else {
+        // A continuation line's prefix width is not the node's start
+        // column (lazy continuations carry none) — the column is the
+        // offset within its own line.
+        start - line_start
+    };
     let start_point = Point {
         row: base.1.row + rows,
-        column: base.1.column + (start - line_start),
+        column,
     };
     let inside = &source[start..start + len];
     let extra_rows = inside.matches('\n').count();
@@ -557,7 +573,7 @@ mod tests {
     #[test]
     fn fixture_collects_headings_definitions_and_links() {
         let index = fixture();
-        assert_eq!(index.headings.len(), 1);
+        assert_eq!(index.headings.len(), 3);
         assert_eq!(index.headings[0].slug, "top");
         assert_eq!(index.headings[0].level, 1);
         assert!(index.has_heading_slug("top"));
@@ -586,7 +602,7 @@ mod tests {
         assert!(index.has_footnote_definition("note"));
         assert!(!index.has_footnote_definition("Note"));
         let targets: Vec<&str> = index.wikilinks.iter().map(|w| w.target.as_str()).collect();
-        assert_eq!(targets, vec!["Other", "folder/note#Section"]);
+        assert_eq!(targets, vec!["Other", "folder/note#Section", "LazyWiki"]);
     }
 
     #[test]
@@ -682,5 +698,49 @@ mod tests {
             .collect();
         assert!(!footnotes.contains(&"99"));
         assert!(!footnotes.contains(&"77"));
+    }
+
+    #[test]
+    fn setext_headings_are_collected() {
+        let index = fixture();
+        assert_eq!(index.headings.len(), 3);
+        let setext = index
+            .headings
+            .iter()
+            .find(|heading| heading.slug == "setext-title")
+            .expect("setext heading collected");
+        assert_eq!(setext.level, 1);
+        let setext_two = index
+            .headings
+            .iter()
+            .find(|heading| heading.slug == "setext-two")
+            .expect("level-2 setext heading collected");
+        assert_eq!(setext_two.level, 2);
+        assert!(index.has_heading_slug("setext-title"));
+    }
+
+    #[test]
+    fn scanned_points_match_their_source_lines() {
+        let text = fixture_text();
+        let index = fixture();
+        let lazy = index
+            .wikilinks
+            .iter()
+            .find(|wikilink| wikilink.target == "LazyWiki")
+            .expect("lazy-continuation wikilink collected");
+        let slice = &text[lazy.range.start_byte..lazy.range.end_byte];
+        assert_eq!(slice, "[[LazyWiki]]");
+        let line_start = text[..lazy.range.start_byte]
+            .rfind('\n')
+            .map_or(0, |i| i + 1);
+        assert_eq!(
+            lazy.range.start_point.row,
+            text[..lazy.range.start_byte].matches('\n').count(),
+        );
+        assert_eq!(
+            lazy.range.start_point.column,
+            lazy.range.start_byte - line_start,
+            "continuation-line column is the offset within its own line",
+        );
     }
 }

@@ -21,3 +21,12 @@ Span `[[SpanDecoy]]` and `[^77]` here.
 ```
 [a](decoy.md) and [[WikiDecoy]] and [^99]
 ```
+
+Setext Title
+============
+
+> quoted first line
+lazy continuation [[LazyWiki]] here
+
+Setext Two
+---

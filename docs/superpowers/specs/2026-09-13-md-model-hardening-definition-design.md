@@ -52,6 +52,17 @@ footnote reference / wikilink → target `Location`.
 - **Setext**: a `setext_heading` arm in `collect_block` — level from the underline
   child's kind (`setext_h1_underline` → 1, `setext_h2_underline` → 2), content from the
   same `heading_content` field, same `slugify`.
+- **Slug semantics upgraded** (owner decision 2026-09-14, superseding cycle 1's
+  "not a full slugger — accepted POC divergence" and its `slugify` in
+  `src/links/mod.rs`): a dedicated `src/links/slug.rs` module, GitHub-style and
+  unicode-preserving — trim ends, lowercase, whitespace runs (`char::is_whitespace`,
+  covers NBSP/ideographic) collapse to one dash, keep `char::is_alphanumeric` plus `_`
+  and `-`, drop everything else, trim edge dashes. `# Привіт, світ` → `привіт-світ`;
+  `Setext Title` → `setext-title` (existing fixtures unaffected). One function serves
+  both matching sides (heading collection + fragment resolution). No positional math
+  inside — UTF-8 position handling stays where it belongs: the framework converts
+  client positions to UTF-8 at the trait boundary and tree-sitter ranges are byte-based;
+  `slugify` is a pure string transform and encoding-neutral.
 - **scan_range**: for a hit below the inline node's first line (`rows > 0`), the column
   is `start − line_start` without the base column; the first-line branch is unchanged.
   Multi-line fixture lines (including a lazy-continuation) pin both branches.

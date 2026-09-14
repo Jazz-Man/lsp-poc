@@ -469,6 +469,10 @@ Expected: exit 0 across all four.
 
 ### Task 3: Un-trimmed model + `Resolved` carries the target URL + `src/definitions/`
 
+> **EXECUTION ORDER NOTE (owner decision 2026-09-14):** Task 6 (the unicode slug
+> module) executes BEFORE this task — `definitions` routes fragments through
+> `slugify`, so the upgraded semantics must land first.
+
 **Files:**
 - Modify: `crates/lsp-poc/src/links/mod.rs` (struct shapes, collectors, accessors, `has_*` bodies)
 - Modify: `crates/lsp-poc/src/workspace/mod.rs` (`Resolved::Found` gains `url`; `load` threads it)
@@ -1193,3 +1197,120 @@ dogfood: `goToDefinition` on the fixture link must return the target location
 ("метод вже так"), and the cycle-1 plan document's fenced-example false positives
 (codes 5/6 on lines with `[[Other]]`/`[^1]` inside code) must be gone on the next
 diagnostics pass.
+
+---
+
+### Task 6: Unicode slug module (executes BEFORE Task 3)
+
+**Files:**
+- Create: `crates/lsp-poc/src/links/slug.rs`
+- Modify: `crates/lsp-poc/src/links/mod.rs` (declare `mod slug;`, replace the `slugify` fn with a re-export, keep all callers unchanged)
+
+**Interfaces:**
+- Consumes: nothing (pure string transform; no positional math — UTF-8 position handling stays at the framework boundary, tree-sitter ranges stay byte-based; this module is encoding-neutral).
+- Produces (Tasks 3–4 rely on it): `crate::links::slugify(heading: &str) -> String` with the SAME name and signature as today — GitHub-style, unicode-preserving.
+
+**Semantics (owner decision 2026-09-14, GitHub-style unicode; supersedes cycle 1's trim+lowercase+space-dash):**
+1. Trim ends (`str::trim` — Rust's `White_Space` class already covers the NBSP/ideographic/zwsp cases the owner's PHP-trim port lists).
+2. Lowercase (`str::to_lowercase`, unicode).
+3. Walk chars: whitespace runs (`char::is_whitespace`, one or more) → a single `-`; keep `char::is_alphanumeric()` plus `_` and `-`; drop everything else (punctuation).
+4. Trim leading/trailing `-`.
+
+Fixtures: `Setext Title` → `setext-title` (unchanged — existing tests stay green); `# Привіт, світ` → `привіт-світ`; `Hello, World!` → `hello-world`; `A  B` (two spaces) → `a-b`; `- x -` → `x`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `crates/lsp-poc/src/links/slug.rs` with the module doc and this test module (implementation in Step 3):
+
+```rust
+//! GitHub-style anchor slugs, unicode-preserving.
+//!
+//! Trim, lowercase, whitespace runs collapse to one dash, keep unicode
+//! alphanumeric plus `_`/`-`, drop the rest, trim edge dashes. Pure
+//! string transform — no positional math; UTF-8 position handling stays
+//! at the framework boundary.
+
+#[cfg(test)]
+mod tests {
+    use super::slugify;
+
+    #[test]
+    fn existing_fixture_slugs_are_unchanged() {
+        assert_eq!(slugify("Top"), "top");
+        assert_eq!(slugify("Setext Title"), "setext-title");
+        assert_eq!(slugify("Heading One"), "heading-one");
+    }
+
+    #[test]
+    fn unicode_headings_keep_their_letters() {
+        assert_eq!(slugify("Привіт, світ"), "привіт-світ");
+        assert_eq!(slugify("  НОТАТКИ і ідеї "), "нотатки-і-ідеї");
+    }
+
+    #[test]
+    fn punctuation_drops_and_whitespace_runs_collapse() {
+        assert_eq!(slugify("Hello, World!"), "hello-world");
+        assert_eq!(slugify("A  B"), "a-b");
+        assert_eq!(slugify("a\t\nb"), "a-b");
+    }
+
+    #[test]
+    fn edge_dashes_trim_and_underscores_survive() {
+        assert_eq!(slugify("-- x --"), "x");
+        assert_eq!(slugify("snake_case heading"), "snake_case-heading");
+        assert_eq!(slugify("   "), "");
+    }
+}
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cargo nextest run -p lsp-poc links::slug`
+Expected: compile error — `slugify` not found in `links::slug`.
+
+- [ ] **Step 3: Implement**
+
+Add above `#[cfg(test)]`:
+
+```rust
+/// GitHub-style anchor: trim, lowercase, whitespace runs collapse to one
+/// dash, keep unicode alphanumeric plus `_`/`-`, drop the rest, trim edge
+/// dashes. One function serves both matching sides — heading collection
+/// and fragment resolution.
+#[must_use]
+pub fn slugify(heading: &str) -> String {
+    let mut slug = String::with_capacity(heading.len());
+    let mut pending_dash = false;
+    for character in heading.trim().chars() {
+        if character.is_whitespace() {
+            pending_dash = !slug.is_empty();
+            continue;
+        }
+        if !(character.is_alphanumeric() || character == '_' || character == '-') {
+            continue;
+        }
+        if pending_dash {
+            slug.push('-');
+            pending_dash = false;
+        }
+        slug.extend(character.to_lowercase());
+    }
+    slug.trim_matches('-').to_owned()
+}
+```
+
+Also in `crates/lsp-poc/src/links/mod.rs`: add `mod slug;` after the module doc,
+DELETE the old `slugify` fn there, and add `pub use slug::slugify;` in its place —
+every existing caller (`collect_heading`, `collect_setext_heading`, `diagnostics`,
+`definitions`) keeps compiling against the same path `crate::links::slugify`.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `cargo nextest run -p lsp-poc links::`
+Expected: 13 passed (9 existing + 4 new slug tests; the fixture-based tests unchanged
+because `Setext Title`/`Top` slug identically under both semantics).
+
+- [ ] **Step 5: Task gates**
+
+Run: `make fmt-fix && make fmt && make clippy && make test`
+Expected: exit 0 across all four.
