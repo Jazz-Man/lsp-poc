@@ -11,6 +11,8 @@
 //! documentation produce no shapes. Headings come in both ATX (`#`) and
 //! setext (underlined) forms.
 
+mod slug;
+
 use async_language_server::tree_sitter::{Node, Point, Range};
 use tree_sitter_md::MarkdownParser;
 
@@ -188,12 +190,7 @@ pub fn parse_wiki_target(target: &str) -> Option<Target> {
     })
 }
 
-/// GitHub-style anchor: lowercase, spaces → dashes (the reference's
-/// normalization, not a full slugger — accepted POC divergence).
-#[must_use]
-pub fn slugify(heading: &str) -> String {
-    heading.trim().to_lowercase().replace(' ', "-")
-}
+pub use slug::slugify;
 
 /// `CommonMark` label identity: trim, lowercase, collapse whitespace runs.
 fn normalize_label(label: &str) -> String {
