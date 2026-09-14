@@ -114,28 +114,16 @@ pub enum Target {
 #[derive(Debug)]
 pub enum CursorItem<'a> {
     /// A heading.
-    #[expect(
-        dead_code,
-        reason = "heading payload rides along for cycle-3 references"
-    )]
     Heading(&'a Heading),
     /// An inline link.
     Link(&'a Link),
     /// A reference link's label.
     Reference(&'a Reference),
     /// A link reference definition.
-    #[expect(
-        dead_code,
-        reason = "definition payload rides along for cycle-3 references"
-    )]
     Definition(&'a Definition),
     /// A footnote reference.
     FootnoteReference(&'a FootnoteReference),
     /// A footnote definition.
-    #[expect(
-        dead_code,
-        reason = "footnote-definition payload rides along for cycle-3 references"
-    )]
     FootnoteDefinition(&'a FootnoteDefinition),
     /// A wikilink.
     Wikilink(&'a Wikilink),
@@ -633,6 +621,17 @@ fn walk(node: Node, visit: &mut dyn FnMut(Node)) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         walk(child, visit);
+    }
+}
+
+/// The document-start range, for file targets without a fragment.
+#[must_use]
+pub fn zero_range() -> Range {
+    Range {
+        start_byte: 0,
+        end_byte: 0,
+        start_point: Point { row: 0, column: 0 },
+        end_point: Point { row: 0, column: 0 },
     }
 }
 

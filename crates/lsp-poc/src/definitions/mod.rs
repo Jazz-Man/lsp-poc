@@ -12,7 +12,7 @@ use async_language_server::lsp_types::{
 use async_language_server::tree_sitter_utils::ts_range_to_lsp_range;
 
 use crate::links::{
-    self, CursorItem, Target, item_at, parse_destination, parse_wiki_target, slugify,
+    self, CursorItem, Target, item_at, parse_destination, parse_wiki_target, slugify, zero_range,
 };
 use crate::workspace::Resolved;
 
@@ -100,16 +100,6 @@ fn scalar(url: &Url, range: async_language_server::tree_sitter::Range) -> GotoDe
         uri: url.clone(),
         range: ts_range_to_lsp_range(range),
     })
-}
-
-/// The document-start range, for file targets without a fragment.
-fn zero_range() -> async_language_server::tree_sitter::Range {
-    async_language_server::tree_sitter::Range {
-        start_byte: 0,
-        end_byte: 0,
-        start_point: async_language_server::tree_sitter::Point { row: 0, column: 0 },
-        end_point: async_language_server::tree_sitter::Point { row: 0, column: 0 },
-    }
 }
 
 #[cfg(test)]

@@ -6,6 +6,7 @@ mod diagnostics;
 mod hovers;
 mod info;
 mod links;
+mod references;
 mod server;
 mod tracing;
 mod workspace;

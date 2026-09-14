@@ -79,6 +79,21 @@ impl Index {
         *self.root.lock().unwrap_or_else(PoisonError::into_inner) = None;
     }
 
+    /// Clones the cached (URL, index) pairs, sorted by URL. The snapshot
+    /// covers previously resolved workspace files; open documents are the
+    /// caller's merge.
+    #[must_use]
+    #[expect(dead_code, reason = "the server consumes it at cycle-3 task-3 wiring")]
+    pub fn snapshot(&self) -> Vec<(Url, Arc<links::MdIndex>)> {
+        let cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut pairs: Vec<_> = cache
+            .iter()
+            .map(|(url, entry)| (url.clone(), Arc::clone(&entry.index)))
+            .collect();
+        pairs.sort_unstable_by(|left, right| left.0.as_str().cmp(right.0.as_str()));
+        pairs
+    }
+
     /// Resolves `target` to a file. Returns `None` only for
     /// [`Target::Fragment`] — same-document targets are the caller's job.
     /// Open documents (via `open`) win over the disk.
