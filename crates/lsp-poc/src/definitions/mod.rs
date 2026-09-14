@@ -18,7 +18,8 @@ use crate::workspace::Resolved;
 
 /// Answers the definition target for the item under `position`, or `None`
 /// when nothing definition-worthy is under it or the target does not
-/// resolve. First matching item in collection order wins.
+/// resolve. The first item in [`item_at`]'s fixed cross-collection order
+/// wins.
 #[must_use]
 pub fn at_position(
     index: &links::MdIndex,
@@ -32,7 +33,9 @@ pub fn at_position(
             route(index, self_url, &target, resolve)
         }
         // Footnote and wikilink shapes surface as reference labels; the
-        // guard sends them to their own arms.
+        // guard keeps full-reference `[^...]` labels out of this arm, and
+        // footnote and wikilink shapes route to their own CursorItem
+        // variants.
         Some(CursorItem::Reference(reference)) if !reference.label.starts_with(['^', '[']) => {
             let definition = index
                 .definitions()

@@ -62,12 +62,17 @@ impl PocLanguageServer {
     fn document_snapshots(&self, state: &ServerState) -> Vec<DocumentSnapshot> {
         let mut snapshots = Vec::new();
         for document in state.documents() {
-            if let Some(index) = self.parse(&document.text_contents()) {
-                snapshots.push(DocumentSnapshot {
-                    url: document.url().clone(),
-                    index,
-                });
-            }
+            let Some(index) = self.parse(&document.text_contents()) else {
+                tracing::debug!(
+                    "markdown parse produced no tree; skipping {url} in reference scans",
+                    url = document.url(),
+                );
+                continue;
+            };
+            snapshots.push(DocumentSnapshot {
+                url: document.url().clone(),
+                index,
+            });
         }
         for (url, index) in self.files.snapshot() {
             if !snapshots.iter().any(|snapshot| snapshot.url == url) {
