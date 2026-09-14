@@ -15,3 +15,9 @@ Wiki [[Other]] and [[folder/note#Section]].
 Capital [^Note] reference.
 
 [^Note]: capital text
+
+Span `[[SpanDecoy]]` and `[^77]` here.
+
+```
+[a](decoy.md) and [[WikiDecoy]] and [^99]
+```

@@ -9,11 +9,14 @@ diagnostics, and — through the Claude Code dogfood plugin — a second real cl
 defects were found and triaged to this cycle, plus the next roadmap capability:
 
 1. **Code regions are scanned** (dogfood bug report, 8 false positives on the cycle-1 plan
-   document): the off-tree footnote/wikilink scans run over every inline tree, and fenced
-   code blocks also reach the model as inline content — so `[[Other]]`/`[^1]` examples
-   inside code fences and code spans produce bogus codes 5/6. Wider than the module doc's
-   "code spans" wording suggested. The upstream reference does not have this class of
-   false positive (mdast models code as `Code` nodes, not text).
+   document): the off-tree footnote/wikilink scans run over every inline tree, so `[[…]]`/`[^…]`
+   shapes inside code spans produce bogus codes 5/6. (Corrected 2026-09-13 during execution:
+   tree-sitter-md already emits no inline trees for fenced blocks — the plan document's
+   fence-line hits traced to nested-fence misparsing, where inner ``` markers close the
+   outer markdown fence and the remainder parses as live Markdown. The model leak is code
+   spans; the fence filter below stays as no-op defense for rev bumps.) The upstream
+   reference does not have this class of false positive (mdast models code as `Code`
+   nodes, not text).
 2. **Setext headings are not collected**: `collect_block` matches only `atx_heading`;
    tree-sitter-md 0.5.3 also models `setext_heading` (same `heading_content` field).
    Links targeting setext headings false-positive codes 1/2.

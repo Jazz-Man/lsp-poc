@@ -5,9 +5,10 @@
 //! from typed grammar nodes. Footnotes and wikilinks have no nodes in
 //! tree-sitter-md, so they are handled off-tree: definitions are `^…`
 //! link-reference-definitions (with a paragraph fallback), references and
-//! wikilinks are byte scans over inline text. Known limitation: those
-//! scans also match shapes inside code spans — the grammars give no
-//! cheaper boundary; refine when a cycle needs it. Headings are ATX
+//! wikilinks are byte scans over inline text. Code regions are excluded:
+//! fenced and indented code blocks suppress their inline trees entirely,
+//! and off-tree scans skip `code_span` windows — example links in
+//! documentation produce no shapes. Headings are ATX
 //! (`#`) only; setext underlines are not collected — cycle 2.
 
 use async_language_server::tree_sitter::{Node, Point, Range};
@@ -129,12 +130,24 @@ impl MdIndex {
 pub fn build(parser: &mut MarkdownParser, text: &str) -> Option<MdIndex> {
     let tree = parser.parse(text.as_bytes(), None)?;
     let mut index = MdIndex::default();
-    collect_block(tree.block_tree().root_node(), text, &mut index);
+    let mut code = Vec::new();
+    collect_block(tree.block_tree().root_node(), text, &mut index, &mut code);
     for inline in tree.inline_trees() {
-        collect_inline(inline.root_node(), text, &mut index);
-        scan_offtree(inline.root_node(), text, &mut index);
+        let root = inline.root_node();
+        if code.iter().any(|range| covers(*range, root.range())) {
+            continue;
+        }
+        let mut spans = Vec::new();
+        collect_inline(root, text, &mut index, &mut spans);
+        scan_offtree(root, text, &mut index, &spans);
     }
     Some(index)
+}
+
+/// `true` when `inner` lies fully inside `outer` (byte comparison — both
+/// ranges come from the same parse of the same text).
+fn covers(outer: Range, inner: Range) -> bool {
+    inner.start_byte >= outer.start_byte && inner.end_byte <= outer.end_byte
 }
 
 /// Classifies a link destination; `None` means "nothing to check"
@@ -191,16 +204,17 @@ fn normalize_label(label: &str) -> String {
         .to_lowercase()
 }
 
-fn collect_block(node: Node, text: &str, index: &mut MdIndex) {
+fn collect_block(node: Node, text: &str, index: &mut MdIndex, code: &mut Vec<Range>) {
     match node.kind() {
         "atx_heading" => collect_heading(node, text, index),
         "link_reference_definition" => collect_definition(node, text, index),
         "paragraph" => collect_footnote_definition_from_paragraph(node, text, index),
+        "fenced_code_block" | "indented_code_block" => code.push(node.range()),
         _ => {}
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_block(child, text, index);
+        collect_block(child, text, index, code);
     }
 }
 
@@ -287,7 +301,7 @@ fn collect_footnote_definition_from_paragraph(paragraph: Node, text: &str, index
     index.footnote_definitions.push(normalize_label(id));
 }
 
-fn collect_inline(root: Node, text: &str, index: &mut MdIndex) {
+fn collect_inline(root: Node, text: &str, index: &mut MdIndex, spans: &mut Vec<Range>) {
     walk(root, &mut |node| match node.kind() {
         "inline_link" => {
             let mut cursor = node.walk();
@@ -358,6 +372,7 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex) {
                 range: node.range(),
             });
         }
+        "code_span" => spans.push(node.range()),
         // Images are not diagnosed in cycle 1 (the reference skips them too),
         // and nothing else in the inline grammar is collected either.
         _ => {}
@@ -366,13 +381,55 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex) {
 
 /// Scans an inline tree's root text for footnote references and wikilinks
 /// — the shapes the grammars do not model.
-fn scan_offtree(root: Node, text: &str, index: &mut MdIndex) {
+fn scan_offtree(root: Node, text: &str, index: &mut MdIndex, spans: &[Range]) {
     let Ok(source) = root.utf8_text(text.as_bytes()) else {
         return;
     };
-    let base = (root.start_byte(), root.start_position());
-    scan_footnote_references(source, base, index);
-    scan_wikilinks(source, base, index);
+    let root_base = (root.start_byte(), root.start_position());
+    // Spans carry absolute document bytes; the scans below index the root's
+    // own text, so bring both into that root-relative space first.
+    let windows: Vec<(usize, usize)> = spans
+        .iter()
+        .map(|range| (range.start_byte - root_base.0, range.end_byte - root_base.0))
+        .collect();
+    for (start, end) in complement(&windows, source.len()) {
+        let slice = &source[start..end];
+        let before = &source[..start];
+        let rows = before.matches('\n').count();
+        let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+        let column = if rows == 0 {
+            root_base.1.column + start
+        } else {
+            start - line_start
+        };
+        let base = (
+            root_base.0 + start,
+            Point {
+                row: root_base.1.row + rows,
+                column,
+            },
+        );
+        scan_footnote_references(slice, base, index);
+        scan_wikilinks(slice, base, index);
+    }
+}
+
+/// Maximal source windows not covered by any span, in document order.
+fn complement(spans: &[(usize, usize)], len: usize) -> Vec<(usize, usize)> {
+    let mut edges: Vec<(usize, usize)> = spans.to_vec();
+    edges.sort_unstable();
+    let mut segments = Vec::new();
+    let mut at = 0;
+    for (start, end) in edges {
+        if start > at {
+            segments.push((at, start));
+        }
+        at = at.max(end);
+    }
+    if at < len {
+        segments.push((at, len));
+    }
+    segments
 }
 
 fn scan_footnote_references(source: &str, base: (usize, Point), index: &mut MdIndex) {
@@ -601,5 +658,29 @@ mod tests {
     fn slugify_matches_the_reference_normalization() {
         assert_eq!(slugify("Heading One"), "heading-one");
         assert_eq!(slugify("  Mixed CASE "), "mixed-case");
+    }
+
+    #[test]
+    fn code_regions_produce_no_shapes() {
+        let index = fixture();
+        // Only the real links/wikilinks/footnotes — no decoy.md, WikiDecoy,
+        // SpanDecoy, ^99, or ^77.
+        assert_eq!(index.links.len(), 2);
+        assert!(
+            !index
+                .links
+                .iter()
+                .any(|link| link.destination == "decoy.md")
+        );
+        let wikis: Vec<&str> = index.wikilinks.iter().map(|w| w.target.as_str()).collect();
+        assert!(!wikis.contains(&"WikiDecoy"));
+        assert!(!wikis.contains(&"SpanDecoy"));
+        let footnotes: Vec<&str> = index
+            .footnote_references
+            .iter()
+            .map(|f| f.id.as_str())
+            .collect();
+        assert!(!footnotes.contains(&"99"));
+        assert!(!footnotes.contains(&"77"));
     }
 }

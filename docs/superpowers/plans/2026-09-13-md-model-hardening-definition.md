@@ -86,8 +86,8 @@ In `crates/lsp-poc/src/links/mod.rs` `mod tests`, add:
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `cargo nextest run -p lsp-poc links::code_regions`
-Expected: FAIL — the decoys are collected today (`links.len()` is 3, wikis contain `WikiDecoy`/`SpanDecoy`, footnotes contain `99`/`77`).
+Run: `cargo nextest run -p lsp-poc links::` (the `tests::` path segment makes bare `links::code_regions` match nothing)
+Expected: FAIL — **only the code-span decoys leak on the pinned rev**: `SpanDecoy` among the wikilinks and `77` among the footnotes. The fence decoys (`decoy.md`, `WikiDecoy`, `^99`) do NOT reproduce — tree-sitter-md already emits no inline trees for fenced blocks, so the fence filter this task adds is no-op defense for rev bumps. (Corrected 2026-09-13 during execution: the brief's original red expectation assumed fence leakage; the live cycle-1 dogfood noise on the plan document traced to nested-fence misparsing — inner ``` closing the outer markdown fence — not to fence inline trees.)
 
 - [ ] **Step 4: Implement the exclusion**
 
@@ -207,7 +207,11 @@ new:
         _ => {}
 ```
 
-4e. `scan_offtree` — run the scans only over the complement of the span windows:
+4e. `scan_offtree` — run the scans only over the complement of the span windows.
+**(Corrected 2026-09-13 during execution: as written below, `complement` mixed
+document-absolute span bytes with root-relative `source` indexing and panicked. The
+landed fix converts spans to root-relative pairs before the complement;
+`complement(&[(usize, usize)], len)`; the shape below otherwise holds.)**
 
 old:
 ```rust
