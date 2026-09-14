@@ -1,6 +1,6 @@
-use std::future::{Future, ready};
-use std::sync::{Arc, Mutex, PoisonError};
-
+use crate::links::{self, Target};
+use crate::workspace::{Index, Resolved};
+use crate::{definitions, diagnostics};
 use async_language_server::lsp_types::notification::PublishDiagnostics;
 use async_language_server::lsp_types::{
     ClientCapabilities, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
@@ -15,12 +15,9 @@ use async_language_server::server::{DocumentMatcher, Server, ServerResult, Serve
 use async_language_server::tree_sitter_utils::{
     ts_range_contains_lsp_position, ts_range_to_lsp_range,
 };
+use std::future::{Future, ready};
+use std::sync::{Arc, Mutex, PoisonError};
 use tree_sitter_md::MarkdownParser;
-
-use crate::definitions;
-use crate::diagnostics;
-use crate::links::{self, Target};
-use crate::workspace::{Index, Resolved};
 
 #[derive(Clone)]
 pub struct PocLanguageServer {

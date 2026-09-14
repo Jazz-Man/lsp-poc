@@ -209,7 +209,7 @@ fn file_stamp(path: &Path) -> Option<FileStamp> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Arc, Index, MarkdownParser, Path, PathBuf, Resolved, Url, links};
     use crate::links::{Target, parse_destination};
 
     fn temp_dir(name: &str) -> PathBuf {

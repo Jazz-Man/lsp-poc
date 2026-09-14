@@ -177,7 +177,7 @@ pub fn build(parser: &mut MarkdownParser, text: &str) -> Option<MdIndex> {
         }
         let mut spans = Vec::new();
         collect_inline(root, text, &mut index, &mut spans);
-        scan_offtree(root, text, &mut index, &spans);
+        scan_offtree(root, text, &mut index, &mut spans);
     }
     Some(index)
 }
@@ -437,18 +437,17 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex, spans: &mut Vec<R
 
 /// Scans an inline tree's root text for footnote references and wikilinks
 /// — the shapes the grammars do not model.
-fn scan_offtree(root: Node, text: &str, index: &mut MdIndex, spans: &[Range]) {
+fn scan_offtree(root: Node, text: &str, index: &mut MdIndex, spans: &mut [Range]) {
     let Ok(source) = root.utf8_text(text.as_bytes()) else {
         return;
     };
     let root_base = (root.start_byte(), root.start_position());
-    // Spans carry absolute document bytes; the scans below index the root's
-    // own text, so bring both into that root-relative space first.
-    let windows: Vec<(usize, usize)> = spans
-        .iter()
-        .map(|range| (range.start_byte - root_base.0, range.end_byte - root_base.0))
-        .collect();
-    for (start, end) in complement(&windows, source.len()) {
+    // Spans carry absolute document bytes and `complement` keeps that
+    // space; the scans below index the root's own text, so each window is
+    // brought back into that root-relative space before slicing.
+    let text = (root_base.0, root_base.0 + source.len());
+    for (start, end) in complement(spans, text) {
+        let (start, end) = (start - root_base.0, end - root_base.0);
         let slice = &source[start..end];
         let before = &source[..start];
         let rows = before.matches('\n').count();
@@ -470,20 +469,21 @@ fn scan_offtree(root: Node, text: &str, index: &mut MdIndex, spans: &[Range]) {
     }
 }
 
-/// Maximal source windows not covered by any span, in document order.
-fn complement(spans: &[(usize, usize)], len: usize) -> Vec<(usize, usize)> {
-    let mut edges: Vec<(usize, usize)> = spans.to_vec();
-    edges.sort_unstable();
+/// Maximal windows of `text` (absolute byte bounds) not covered by any
+/// span, in document order. Sorts `spans` in place as a side effect.
+fn complement(spans: &mut [Range], text: (usize, usize)) -> Vec<(usize, usize)> {
+    spans.sort_unstable_by_key(|range| (range.start_byte, range.end_byte));
     let mut segments = Vec::new();
-    let mut at = 0;
-    for (start, end) in edges {
+    let mut at = text.0;
+    for range in spans.iter() {
+        let (start, end) = (range.start_byte, range.end_byte);
         if start > at {
             segments.push((at, start));
         }
         at = at.max(end);
     }
-    if at < len {
-        segments.push((at, len));
+    if at < text.1 {
+        segments.push((at, text.1));
     }
     segments
 }
@@ -599,7 +599,9 @@ fn walk(node: Node, visit: &mut dyn FnMut(Node)) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        MarkdownParser, MdIndex, Target, build, parse_destination, parse_wiki_target, slugify,
+    };
 
     /// Absolute path of a shared fixture document.
     fn fixture_path(name: &str) -> std::path::PathBuf {
@@ -633,14 +635,18 @@ mod tests {
             index
                 .links
                 .iter()
-                .any(|link| link.destination == "guide.md")
+                .any(|link| link.destination == "guide.md"),
         );
     }
 
     #[test]
     fn fixture_collects_references_footnotes_and_wikilinks() {
         let index = fixture();
-        let mut labels: Vec<&str> = index.references.iter().map(|r| r.label.as_str()).collect();
+        let mut labels: Vec<&str> = index
+            .references
+            .iter()
+            .map(|reference| reference.label.as_str())
+            .collect();
         labels.sort_unstable();
         assert_eq!(labels, vec!["collapsed", "ref", "shortcut"]);
         assert!(index.has_footnote_definition("1"));
@@ -649,7 +655,11 @@ mod tests {
         assert_eq!(index.footnote_references[1].id, "note");
         assert!(index.has_footnote_definition("note"));
         assert!(!index.has_footnote_definition("Note"));
-        let targets: Vec<&str> = index.wikilinks.iter().map(|w| w.target.as_str()).collect();
+        let targets: Vec<&str> = index
+            .wikilinks
+            .iter()
+            .map(|wikilink| wikilink.target.as_str())
+            .collect();
         assert_eq!(targets, vec!["Other", "folder/note#Section", "LazyWiki"]);
     }
 
@@ -670,28 +680,28 @@ mod tests {
     fn parse_destination_classifies_targets() {
         assert_eq!(
             parse_destination("#top"),
-            Some(Target::Fragment("top".to_owned()))
+            Some(Target::Fragment("top".to_owned())),
         );
         assert_eq!(
             parse_destination("guide.md"),
             Some(Target::Doc {
                 path: "guide.md".to_owned(),
-                fragment: None
-            })
+                fragment: None,
+            }),
         );
         assert_eq!(
             parse_destination("a/b.md#section"),
             Some(Target::Doc {
                 path: "a/b.md".to_owned(),
                 fragment: Some("section".to_owned()),
-            })
+            }),
         );
         assert_eq!(
             parse_destination("guide.md#"),
             Some(Target::Doc {
                 path: "guide.md".to_owned(),
-                fragment: None
-            })
+                fragment: None,
+            }),
         );
         assert_eq!(parse_destination("https://example.com"), None);
         assert_eq!(parse_destination("mailto:x@y.z"), None);
@@ -705,15 +715,15 @@ mod tests {
             parse_wiki_target("Other"),
             Some(Target::Wiki {
                 path: "Other".to_owned(),
-                fragment: None
-            })
+                fragment: None,
+            }),
         );
         assert_eq!(
             parse_wiki_target("folder/note#Section"),
             Some(Target::Wiki {
                 path: "folder/note".to_owned(),
                 fragment: Some("Section".to_owned()),
-            })
+            }),
         );
         assert_eq!(parse_wiki_target("#Section"), None);
     }
@@ -727,16 +737,20 @@ mod tests {
     #[test]
     fn code_regions_produce_no_shapes() {
         let index = fixture();
-        // Only the real links/wikilinks/footnotes — no decoy.md, WikiDecoy,
+        // Only the real links, wikilinks, and footnotes — no decoy.md, WikiDecoy,
         // SpanDecoy, ^99, or ^77.
         assert_eq!(index.links.len(), 2);
         assert!(
             !index
                 .links
                 .iter()
-                .any(|link| link.destination == "decoy.md")
+                .any(|link| link.destination == "decoy.md"),
         );
-        let wikis: Vec<&str> = index.wikilinks.iter().map(|w| w.target.as_str()).collect();
+        let wikis: Vec<&str> = index
+            .wikilinks
+            .iter()
+            .map(|wikilink| wikilink.target.as_str())
+            .collect();
         assert!(!wikis.contains(&"WikiDecoy"));
         assert!(!wikis.contains(&"SpanDecoy"));
         let footnotes: Vec<&str> = index

@@ -114,7 +114,7 @@ fn check_wikilinks(
 fn check_references(index: &links::MdIndex, diagnostics: &mut Vec<Diagnostic>) {
     for reference in index.references() {
         // Footnote and wikilink shapes may surface as reference links;
-        // the footnote scan owns `^…`, wikilinks never have definitions.
+        // the footnote scan owns `^id`, wikilinks never have definitions.
         if reference.label.starts_with('^') || reference.label.starts_with('[') {
             continue;
         }
@@ -124,7 +124,7 @@ fn check_references(index: &links::MdIndex, diagnostics: &mut Vec<Diagnostic>) {
                 reference.range,
                 format!(
                     "link reference to non-existent definition `{}`",
-                    reference.label
+                    reference.label,
                 ),
             ));
         }
@@ -140,7 +140,7 @@ fn check_footnotes(index: &links::MdIndex, diagnostics: &mut Vec<Diagnostic>) {
                 footnote.range,
                 format!(
                     "footnote reference to non-existent definition `{}`",
-                    footnote.id
+                    footnote.id,
                 ),
             ));
         }
@@ -180,7 +180,7 @@ fn broken(code: i32, range: Range, message: String) -> Diagnostic {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Diagnostic, DiagnosticSeverity, NumberOrString, Resolved, Target, compute, links};
     use std::sync::Arc;
     use tree_sitter_md::MarkdownParser;
 
@@ -229,7 +229,7 @@ mod tests {
             assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::ERROR));
             assert_eq!(
                 diagnostic.source.as_deref(),
-                Some(crate::info::server_name())
+                Some(crate::info::server_name()),
             );
         }
     }

@@ -36,7 +36,10 @@ pub fn at_position(
     }
     // Footnote and wikilink shapes surface as reference labels; their own
     // arms below own them.
-    if let Some(reference) = index.references().iter().find(|r| at(r.range))
+    if let Some(reference) = index
+        .references()
+        .iter()
+        .find(|reference| at(reference.range))
         && !reference.label.starts_with(['^', '['])
     {
         let definition = index
@@ -56,7 +59,7 @@ pub fn at_position(
             .find(|definition| definition.id == footnote.id)?;
         return Some(scalar(self_url, definition.range));
     }
-    if let Some(wikilink) = index.wikilinks().iter().find(|w| at(w.range)) {
+    if let Some(wikilink) = index.wikilinks().iter().find(|wikilink| at(wikilink.range)) {
         let target = parse_wiki_target(&wikilink.target)?;
         let Target::Wiki { .. } = &target else {
             return None;
@@ -125,7 +128,9 @@ fn zero_range() -> async_language_server::tree_sitter::Range {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        GotoDefinitionResponse, Location, LspPosition, Resolved, Target, Url, at_position, links,
+    };
     use std::sync::Arc;
     use tree_sitter_md::MarkdownParser;
 
@@ -170,7 +175,7 @@ mod tests {
         let location = location_of(&index, &url, 0, 8).expect("definition resolves");
         assert_eq!(
             location.uri,
-            Url::parse("file:///target.md").expect("url parses")
+            Url::parse("file:///target.md").expect("url parses"),
         );
         assert_eq!(location.range.start.line, 0);
     }
