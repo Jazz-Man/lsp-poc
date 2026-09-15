@@ -43,13 +43,6 @@ pub struct Heading {
         )
     )]
     pub level: u8,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "heading content is consumed from cycle 4 (rename) onward"
-        )
-    )]
     pub content_range: Range,
     pub range: Range,
 }
@@ -64,13 +57,6 @@ pub struct Definition {
     )]
     pub destination: String,
     pub range: Range,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "label ranges are consumed from cycle 4 (rename) onward"
-        )
-    )]
     pub label_range: Range,
 }
 
@@ -79,13 +65,6 @@ pub struct Definition {
 pub struct FootnoteDefinition {
     pub id: String,
     pub range: Range,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "footnote id ranges are consumed from cycle 4 (rename) onward"
-        )
-    )]
     pub id_range: Range,
 }
 
@@ -94,13 +73,6 @@ pub struct FootnoteDefinition {
 pub struct Link {
     pub destination: String,
     pub range: Range,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "link fragments are consumed from cycle 4 (rename) onward"
-        )
-    )]
     pub fragment_range: Option<Range>,
 }
 
@@ -116,13 +88,6 @@ pub struct Reference {
 pub struct FootnoteReference {
     pub id: String,
     pub range: Range,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "footnote id ranges are consumed from cycle 4 (rename) onward"
-        )
-    )]
     pub id_range: Range,
 }
 
@@ -131,13 +96,6 @@ pub struct FootnoteReference {
 pub struct Wikilink {
     pub target: String,
     pub range: Range,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "wikilink fragments are consumed from cycle 4 (rename) onward"
-        )
-    )]
     pub fragment_range: Option<Range>,
 }
 
@@ -643,13 +601,10 @@ fn scan_wikilinks(source: &str, base: (usize, Point), index: &mut MdIndex) {
         if content.is_empty() || content.contains('[') {
             continue;
         }
-        let fragment_range = content.find('#').map(|hash_offset| {
-            scan_range(
-                base,
-                source,
-                start + 2 + hash_offset + 1,
-                relative - hash_offset - 1,
-            )
+        // `[[path#]]` is fragment-less, like `parse_wiki_target` says.
+        let fragment_range = content.find('#').and_then(|hash_offset| {
+            let len = relative - hash_offset - 1;
+            (len > 0).then(|| scan_range(base, source, start + 2 + hash_offset + 1, len))
         });
         index.wikilinks.push(Wikilink {
             target: content.trim().to_owned(),
@@ -722,16 +677,23 @@ fn clean_destination(node: Node, text: &str) -> Option<String> {
 
 /// The `#fragment` range inside a destination node's own text, in
 /// document-absolute coordinates (`None` when the destination has no
-/// fragment).
+/// fragment, or the fragment is empty — `path#` classifies as
+/// fragment-less, like [`parse_destination`] says). A `<>`-wrapped
+/// destination's closing `>` is not fragment text; its leading `<` is
+/// already behind the hash offset.
 fn fragment_range_in(node: &Node, text: &str) -> Option<Range> {
     let node_text = node.utf8_text(text.as_bytes()).ok()?;
     let hash_offset = node_text.find('#')?;
-    Some(scan_range(
-        (node.start_byte(), node.start_position()),
-        node_text,
-        hash_offset + 1,
-        node_text.len() - hash_offset - 1,
-    ))
+    let wrapped = node_text.starts_with('<') && node_text.ends_with('>');
+    let len = node_text.len() - hash_offset - 1 - usize::from(wrapped);
+    (len > 0).then(|| {
+        scan_range(
+            (node.start_byte(), node.start_position()),
+            node_text,
+            hash_offset + 1,
+            len,
+        )
+    })
 }
 
 fn walk(node: Node, visit: &mut dyn FnMut(Node)) {
@@ -1098,5 +1060,36 @@ mod tests {
             .find(|definition| definition.id == "b")
             .expect("caret footnote definition collected");
         assert_eq!(slice(caret_definition.id_range), "b");
+    }
+
+    #[test]
+    fn fragment_ranges_skip_angle_brackets_and_empty_fragments() {
+        let text = "[t](<doc.md#top>)\n\n[f](doc.md#)\n\nsee [[wiki#]]\n";
+        let mut parser = MarkdownParser::default();
+        let index = build(&mut parser, text).expect("input parses");
+        let slice = |range: Range| &text[range.start_byte..range.end_byte];
+
+        // The `<>`-wrapped destination's fragment excludes both brackets.
+        let wrapped = index
+            .links
+            .iter()
+            .find(|link| link.destination == "doc.md#top")
+            .expect("wrapped-fragment link collected");
+        assert_eq!(slice(wrapped.fragment_range.expect("fragment")), "top");
+
+        // `path#` and `[[wiki#]]` are fragment-less, like the target
+        // parsers classify them.
+        let empty = index
+            .links
+            .iter()
+            .find(|link| link.destination == "doc.md#")
+            .expect("empty-fragment link collected");
+        assert!(empty.fragment_range.is_none());
+        let wiki = index
+            .wikilinks
+            .iter()
+            .find(|wikilink| wikilink.target == "wiki#")
+            .expect("empty-fragment wikilink collected");
+        assert!(wiki.fragment_range.is_none());
     }
 }

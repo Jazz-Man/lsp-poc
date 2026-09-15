@@ -21,3 +21,15 @@ reason = "Arc-returning test parse helpers; same standalone-per-module ruling as
 [[ignore]]
 fingerprint = "ac8fe8cb1f288bf4"
 reason = "Parallel definition route-cell tests answering a canned resolver; differ only in input and expectation, kept symmetric for readability"
+
+[[ignore]]
+fingerprint = "286bb9e9ef44646c"
+reason = "Parallel delegate-route tests (link vs wikilink fragment rename); differ only in the input syntax, kept symmetric for readability"
+
+[[ignore]]
+fingerprint = "54025d3b59d989e0"
+reason = "Identical self_doc fixture shape across sibling capability modules; each module's tests stand alone, no shared test-support module (same ruling as c02e0695c43c674d)"
+
+[[ignore]]
+fingerprint = "ef7dfca6f6b02043"
+reason = "Parallel resolve_from test stubs answering Found on the requesting document; same standalone-per-module ruling as 54ef68fb04420a90"
