@@ -132,6 +132,9 @@ restructuring the tests (owner decision), not by ledger entry.
   on the fixture returns the expected locations ("метод вже так"). Diagnostics on the
   cycle-1 plan document drop to zero false positives from fenced examples.
 
+(Delivered 2026-09-15: the references capability also serves the reverse routes —
+cursor on a reference or footnote reference answers that usage's definition location.)
+
 ## Constraints
 
 - Git is read-only for every agent; the owner commits.

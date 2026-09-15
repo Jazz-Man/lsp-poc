@@ -21,13 +21,6 @@ use crate::links::{
 use crate::workspace::Resolved;
 
 /// One candidate document for cross-file heading renames.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed by the server-side rename wiring later in cycle 4"
-    )
-)]
 #[derive(Debug)]
 pub struct DocumentSnapshot {
     pub url: Url,
@@ -38,36 +31,47 @@ pub struct DocumentSnapshot {
 /// renameable is under it. The sub-range is what `textDocument/rename`
 /// replaces; the server slices the document text at it for the
 /// prepare-rename placeholder.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed by the server-side rename wiring later in cycle 4"
-    )
-)]
 #[must_use]
 pub fn prepare_at(index: &links::MdIndex, position: LspPosition) -> Option<Range> {
     match item_at(index, position)? {
         CursorItem::Heading(heading) => Some(heading.content_range),
-        CursorItem::Link(link) => link.fragment_range,
+        CursorItem::Link(link) => {
+            // Only the shape the rename route accepts — a document target
+            // carrying a fragment — offers a rename: same-document
+            // fragments, fragment-less file links, and web destinations
+            // decline with it.
+            let Some(Target::Doc {
+                fragment: Some(_), ..
+            }) = parse_destination(&link.destination)
+            else {
+                return None;
+            };
+            Some(link.fragment_range?)
+        }
         CursorItem::Reference(reference) => Some(reference.label_range),
         CursorItem::Definition(definition) => Some(definition.label_range),
         CursorItem::FootnoteReference(footnote) => Some(footnote.id_range),
         CursorItem::FootnoteDefinition(definition) => Some(definition.id_range),
-        CursorItem::Wikilink(wikilink) => Some(wikilink.fragment_range.unwrap_or(wikilink.range)),
+        CursorItem::Wikilink(wikilink) => {
+            let Some(Target::Wiki { fragment, .. }) = parse_wiki_target(&wikilink.target) else {
+                return None;
+            };
+            // The same arms the rename route matches: a fragment renames
+            // the heading it points to, the fragment-less wikilink edits
+            // its inner target text, and a parse-visible fragment the
+            // scan could not range edits nothing.
+            match (wikilink.fragment_range, fragment) {
+                (Some(fragment_range), Some(_)) => Some(fragment_range),
+                (_, None) => Some(wikilink.target_range),
+                (None, Some(_)) => None,
+            }
+        }
     }
 }
 
 /// Computes the rename edit map for the item under `position`, or `None`
 /// when nothing renameable is under it or the new name is empty. Edits
 /// within each file are sorted by descending start position.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed by the server-side rename wiring later in cycle 4"
-    )
-)]
 #[expect(
     clippy::too_many_arguments,
     reason = "the arity is the references sibling's shape plus the new name; task 3 consumes it as written"
@@ -174,13 +178,6 @@ struct Context<'a> {
 /// the delegate route links and wikilinks share. `None` when the target
 /// carries no fragment or does not resolve to one of its document's
 /// headings.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed by the server-side rename wiring later in cycle 4"
-    )
-)]
 fn delegate_edits(
     target: &Target,
     context: &Context,
@@ -213,13 +210,6 @@ fn delegate_edits(
 
 /// The finished edit map, each file's edits sorted by descending start
 /// position.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed by the server-side rename wiring later in cycle 4"
-    )
-)]
 fn into_workspace_edit(mut edits: HashMap<Url, Vec<TextEdit>>) -> WorkspaceEdit {
     for edits_in_file in edits.values_mut() {
         edits_in_file.sort_unstable_by(|left, right| {
@@ -240,13 +230,6 @@ fn into_workspace_edit(mut edits: HashMap<Url, Vec<TextEdit>>) -> WorkspaceEdit 
 /// The heading-rename edit set: the heading's own text plus every
 /// link/wikilink fragment that lands on it across the candidate
 /// documents, each resolved in its own document's context.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed by the server-side rename wiring later in cycle 4"
-    )
-)]
 fn heading_rename_edits(
     heading: &links::Heading,
     heading_url: &Url,
@@ -305,13 +288,6 @@ fn heading_rename_edits(
 
 /// Registers one edit for `url`, converting the model range to LSP
 /// coordinates.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed by the server-side rename wiring later in cycle 4"
-    )
-)]
 fn push_edit(
     edits: &mut HashMap<Url, Vec<TextEdit>>,
     url: &Url,
@@ -326,13 +302,6 @@ fn push_edit(
 
 /// `true` when `target`, resolved in the candidate document's context,
 /// lands on the heading named `slug` in the requesting document.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "consumed by the server-side rename wiring later in cycle 4"
-    )
-)]
 fn lands_on(
     slug: &str,
     self_url: &Url,
@@ -553,7 +522,7 @@ mod tests {
 
     #[test]
     fn prepare_at_answers_the_renameable_sub_range() {
-        let index = parse("# Top\n\nsome prose\n\n[summary](#top)\n");
+        let index = parse("# Top\n\nsome prose\n\n[summary](doc.md#top)\n");
         // Heading: the content range, not the `#` marker.
         let heading = prepare_at(
             &index,
@@ -566,17 +535,20 @@ mod tests {
         assert_eq!(heading.start_point.row, 0);
         assert_eq!(heading.start_point.column, 2);
         assert_eq!(heading.end_point.column, 5);
-        // Link: the fragment range inside the destination.
+        // Link: the fragment range inside the destination. The cursor sits
+        // on the fragment text (columns 17–19); the same-document fragment
+        // shape declines instead — see
+        // `prepare_at_declines_shapes_the_rename_route_declines`.
         let fragment = prepare_at(
             &index,
             LspPosition {
                 line: 4,
-                character: 12,
+                character: 19,
             },
         )
         .expect("fragment sub-range");
-        assert_eq!(fragment.start_point.column, 11);
-        assert_eq!(fragment.end_point.column, 14);
+        assert_eq!(fragment.start_point.column, 17);
+        assert_eq!(fragment.end_point.column, 20);
         // Plain text: nothing renameable.
         assert!(
             prepare_at(
@@ -587,6 +559,77 @@ mod tests {
                 },
             )
             .is_none(),
+        );
+    }
+
+    #[test]
+    fn prepare_at_answers_wikilink_ranges_coherently_with_the_rename_edit() {
+        let text = "see [[My Note]] and [[doc#Target]]\n";
+        let index = parse(text);
+        // Fragment-less wikilink: the prepare range is the inner target
+        // text — exactly what the rename edit replaces; the brackets stay.
+        let target = prepare_at(
+            &index,
+            LspPosition {
+                line: 0,
+                character: 8,
+            },
+        )
+        .expect("target sub-range");
+        assert_eq!(&text[target.start_byte..target.end_byte], "My Note");
+        // With a fragment: the fragment bytes.
+        let fragment = prepare_at(
+            &index,
+            LspPosition {
+                line: 0,
+                character: 24,
+            },
+        )
+        .expect("fragment sub-range");
+        assert_eq!(&text[fragment.start_byte..fragment.end_byte], "Target");
+    }
+
+    #[test]
+    fn prepare_at_declines_shapes_the_rename_route_declines() {
+        let index = parse("[x](#top)\n\n[site](https://example.com#s)\n\nsee [[#frag]]\n");
+        // Same-document fragment link: `parse_destination` answers
+        // `Target::Fragment`, which the delegate route cannot rename.
+        assert!(
+            prepare_at(
+                &index,
+                LspPosition {
+                    line: 0,
+                    character: 4,
+                },
+            )
+            .is_none(),
+            "same-document fragment links are not renameable",
+        );
+        // Web destination with a fragment: `parse_destination` answers
+        // None outright.
+        assert!(
+            prepare_at(
+                &index,
+                LspPosition {
+                    line: 2,
+                    character: 20,
+                },
+            )
+            .is_none(),
+            "web destinations are not renameable",
+        );
+        // Same-document wikilink: `parse_wiki_target` answers None for
+        // the empty path.
+        assert!(
+            prepare_at(
+                &index,
+                LspPosition {
+                    line: 4,
+                    character: 8,
+                },
+            )
+            .is_none(),
+            "same-document wikilinks are not renameable",
         );
     }
 

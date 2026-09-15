@@ -33,3 +33,7 @@ reason = "Identical self_doc fixture shape across sibling capability modules; ea
 [[ignore]]
 fingerprint = "ef7dfca6f6b02043"
 reason = "Parallel resolve_from test stubs answering Found on the requesting document; same standalone-per-module ruling as 54ef68fb04420a90"
+
+[[ignore]]
+fingerprint = "f243bb93b23768d1"
+reason = "Eager trait wrappers delegating to the *_at helpers; ready(self.x_at(&state, &params)) is the framework trait signature, bodies intentionally identical (same ruling as 1e9278cc0fc61a15)"

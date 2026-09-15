@@ -223,6 +223,27 @@ mod tests {
     }
 
     #[test]
+    fn cursor_on_the_text_part_of_a_text_footnote_shape_answers_none() {
+        let url = Url::parse("file:///doc.md").expect("url parses");
+        // `[text][^1]`: the cursor on the `text` part must NOT route to a
+        // footnote definition — the guard sends that shape away.
+        let index = parse("[text][^1]\n");
+        let no_resolve = |_: &Target| -> Option<Resolved> { None };
+        assert!(
+            at_position(
+                &index,
+                &url,
+                LspPosition {
+                    line: 0,
+                    character: 3
+                },
+                &no_resolve,
+            )
+            .is_none(),
+        );
+    }
+
+    #[test]
     fn wikilink_route_lands_on_the_target_document() {
         let url = Url::parse("file:///doc.md").expect("url parses");
         let index = parse("see [[other#target]]\n");

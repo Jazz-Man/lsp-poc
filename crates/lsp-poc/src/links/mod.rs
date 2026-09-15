@@ -1055,6 +1055,22 @@ mod tests {
         assert_eq!(slice(reference.range), "[label][ref]");
         assert_eq!(slice(reference.label_range), "ref");
 
+        // Collapsed and shortcut shapes have no second label part; their
+        // label_range is the bare text.
+        let collapsed = index
+            .references
+            .iter()
+            .find(|reference| reference.label == "collapsed")
+            .expect("collapsed reference collected");
+        assert_eq!(slice(collapsed.label_range), "collapsed");
+
+        let shortcut = index
+            .references
+            .iter()
+            .find(|reference| reference.label == "shortcut")
+            .expect("shortcut reference collected");
+        assert_eq!(slice(shortcut.label_range), "shortcut");
+
         let definition = &index.definitions[0];
         assert_eq!(slice(definition.label_range), "ref");
 

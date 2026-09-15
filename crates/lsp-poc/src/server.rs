@@ -1,7 +1,7 @@
 use crate::links::{self, Target};
 use crate::references::{self, DocumentSnapshot};
 use crate::workspace::{Index, Resolved};
-use crate::{definitions, diagnostics};
+use crate::{definitions, diagnostics, renames};
 use async_language_server::lsp_types::notification::PublishDiagnostics;
 use async_language_server::lsp_types::{
     ClientCapabilities, Diagnostic, DiagnosticOptions, DiagnosticServerCapabilities,
@@ -9,8 +9,9 @@ use async_language_server::lsp_types::{
     DocumentDiagnosticParams, DocumentDiagnosticReport, DocumentDiagnosticReportResult,
     FullDocumentDiagnosticReport, GotoDefinitionParams, GotoDefinitionResponse, Hover,
     HoverContents, HoverParams, HoverProviderCapability, MarkupContent, MarkupKind, OneOf,
-    PublishDiagnosticsParams, ReferenceParams, RelatedFullDocumentDiagnosticReport,
-    ServerCapabilities, ServerInfo, Url,
+    PrepareRenameResponse, PublishDiagnosticsParams, ReferenceParams,
+    RelatedFullDocumentDiagnosticReport, RenameOptions, RenameParams, ServerCapabilities,
+    ServerInfo, TextDocumentPositionParams, Url, WorkDoneProgressOptions, WorkspaceEdit,
 };
 use async_language_server::server::{DocumentMatcher, Server, ServerResult, ServerState};
 use async_language_server::tree_sitter_utils::{
@@ -158,6 +159,85 @@ impl PocLanguageServer {
         ))
     }
 
+    /// Answers one `textDocument/prepareRename` request: the renameable
+    /// sub-range under the position, with the old text as the placeholder.
+    fn rename_prepare_at(
+        &self,
+        state: &ServerState,
+        params: &TextDocumentPositionParams,
+    ) -> ServerResult<Option<PrepareRenameResponse>> {
+        let url = &params.text_document.uri;
+        let position = params.position;
+
+        let Some(doc) = state.document(url) else {
+            return Ok(None);
+        };
+        let text = doc.text_contents();
+        let Some(index) = self.parse(&text) else {
+            tracing::debug!("markdown parse produced no tree; no rename for {url}");
+            return Ok(None);
+        };
+        let Some(range) = renames::prepare_at(&index, position) else {
+            return Ok(None);
+        };
+        let Some(placeholder) = text.get(range.start_byte..range.end_byte) else {
+            tracing::warn!("rename range is out of the document bounds; no rename for {url}");
+            return Ok(None);
+        };
+        Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
+            range: ts_range_to_lsp_range(range),
+            placeholder: placeholder.to_owned(),
+        }))
+    }
+
+    /// Answers one `textDocument/rename` request with the per-file edit
+    /// map. Absence is a normal `None`: no document, no parse, nothing
+    /// renameable under the position, or an empty new name.
+    fn rename_at(
+        &self,
+        state: &ServerState,
+        params: &RenameParams,
+    ) -> ServerResult<Option<WorkspaceEdit>> {
+        let url = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+
+        let Some(doc) = state.document(url) else {
+            return Ok(None);
+        };
+        let text = doc.text_contents();
+        let Some(index) = self.parse(&text) else {
+            tracing::debug!("markdown parse produced no tree; no rename for {url}");
+            return Ok(None);
+        };
+        let documents: Vec<renames::DocumentSnapshot> = self
+            .document_snapshots(state)
+            .into_iter()
+            .map(|snapshot| renames::DocumentSnapshot {
+                url: snapshot.url,
+                index: snapshot.index,
+            })
+            .collect();
+        let resolve = self.resolver(state, url);
+        let files = &self.files;
+        let resolve_from = |candidate_url: &Url, target: &Target| {
+            let open = |open_url: &Url| {
+                state
+                    .document(open_url)
+                    .and_then(|open_doc| self.parse(&open_doc.text_contents()))
+            };
+            files.resolve(&open, candidate_url, target)
+        };
+        Ok(renames::at_position(
+            &index,
+            url,
+            position,
+            &params.new_name,
+            &documents,
+            &resolve,
+            &resolve_from,
+        ))
+    }
+
     fn publish(&self, state: &ServerState, url: &Url) {
         let params = PublishDiagnosticsParams {
             uri: url.clone(),
@@ -189,6 +269,10 @@ impl Server for PocLanguageServer {
             hover_provider: Some(HoverProviderCapability::Simple(true)),
             definition_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
+            rename_provider: Some(OneOf::Right(RenameOptions {
+                prepare_provider: Some(true),
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+            })),
             diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
                 workspace_diagnostics: false,
                 ..DiagnosticOptions::default()
@@ -255,6 +339,22 @@ impl Server for PocLanguageServer {
     ) -> impl Future<Output = ServerResult<Option<Vec<async_language_server::lsp_types::Location>>>> + Send
     {
         ready(self.references_at(&state, &params))
+    }
+
+    fn rename_prepare(
+        &self,
+        state: ServerState,
+        params: TextDocumentPositionParams,
+    ) -> impl Future<Output = ServerResult<Option<PrepareRenameResponse>>> + Send {
+        ready(self.rename_prepare_at(&state, &params))
+    }
+
+    fn rename(
+        &self,
+        state: ServerState,
+        params: RenameParams,
+    ) -> impl Future<Output = ServerResult<Option<WorkspaceEdit>>> + Send {
+        ready(self.rename_at(&state, &params))
     }
 
     fn hover(
