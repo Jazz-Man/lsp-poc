@@ -7,8 +7,10 @@
 # CI=true is set by the runner and rtk is not installed.
 ifeq ($(CI),)
 CARGO_BIN := rtk cargo
+GREP_BIN := rtk grep
 else
 CARGO_BIN := cargo
+GREP_BIN := grep
 endif
 
 # Toolchains (dated pins; upgrades are deliberate, never casual).
@@ -24,7 +26,7 @@ TARGET := x86_64-apple-darwin
 
 ## help: list available targets
 help:
-	@rtk grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## //'
+	@$(GREP_BIN) -E '^## ' $(MAKEFILE_LIST) | sed 's/^## //'
 
 ## fmt: check formatting (gate)
 fmt:
