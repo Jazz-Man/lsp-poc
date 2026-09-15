@@ -32,3 +32,6 @@ Setext Two
 ---
 
 [^b]: x
+
+[foo
+bar]: dest.md

@@ -378,27 +378,19 @@ fn collect_definition(definition: Node, text: &str, index: &mut MdIndex) {
 
 /// The bytes INSIDE a `[label]` node — brackets stripped — as a
 /// document-absolute range (the rename replaces bare label text).
-/// Labels are single-line (the `link_label` grammar node), so the end
-/// point's column is the start column plus the inner length.
+/// Multi-line labels are supported: [`scan_range`]'s extra-rows branch
+/// computes the end point.
 fn inner_range(label_node: &Node, text: &str) -> Option<Range> {
     let raw = label_node.utf8_text(text.as_bytes()).ok()?;
     let leading = raw.len() - raw.trim_start_matches('[').len();
     let trailing = raw.len() - raw.trim_end_matches(']').len();
-    let start = label_node.start_byte() + leading;
-    let inner_len = label_node.end_byte() - trailing - start;
-    let start_col = label_node.start_position().column + leading;
-    Some(Range {
-        start_byte: start,
-        end_byte: start + inner_len,
-        start_point: Point {
-            row: label_node.start_position().row,
-            column: start_col,
-        },
-        end_point: Point {
-            row: label_node.start_position().row,
-            column: start_col + inner_len,
-        },
-    })
+    let inner_len = raw.len() - leading - trailing;
+    Some(scan_range(
+        (label_node.start_byte(), label_node.start_position()),
+        raw,
+        leading,
+        inner_len,
+    ))
 }
 
 /// Fallback footnote-definition detection for the case the block grammar
@@ -1089,6 +1081,36 @@ mod tests {
             .find(|definition| definition.id == "b")
             .expect("caret footnote definition collected");
         assert_eq!(slice(caret_definition.id_range), "b");
+    }
+
+    #[test]
+    fn multiline_definition_label_range_spans_both_rows() {
+        let text = fixture_text();
+        let index = fixture();
+        let slice = |range: Range| &text[range.start_byte..range.end_byte];
+
+        // A two-row label: `link_label` allows `_soft_line_break`, so
+        // `[foo\nbar]: dest.md` is ONE label node; the stored label is the
+        // whitespace-collapsed "foo bar" and the range spans both rows.
+        let multiline = index
+            .definitions
+            .iter()
+            .find(|definition| definition.label == "foo bar")
+            .expect("multi-line label collected");
+        assert_eq!(
+            slice(multiline.label_range),
+            "foo\nbar",
+            "multi-line label inner range",
+        );
+        // The end point is the fix's subject: it must land on the label's
+        // LAST row (the old single-line math flowed past the first row's
+        // end), and rename edits convert points, not bytes.
+        assert_eq!(
+            multiline.label_range.end_point.row,
+            multiline.label_range.start_point.row + 1,
+            "multi-line label end point lands on its last row",
+        );
+        assert_eq!(multiline.label_range.end_point.column, "bar".len());
     }
 
     #[test]

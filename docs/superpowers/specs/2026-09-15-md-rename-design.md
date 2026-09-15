@@ -26,6 +26,12 @@ Rename routes (cursor on → what gets edited):
   physical file is NOT renamed — file renames are `workspace/willRename`, out of
   scope).
 
+(Corrected 2026-09-15 during execution: link and wikilink renames with a fragment
+DELEGATE to the target heading — the heading's text plus every inbound fragment
+across candidates are edited; the link's own fragment is edited too. Fragment-less
+wikilinks edit their inner target text; fragment-less file links and web
+destinations decline.)
+
 Plus the cycle-3 opener tails: a definitions test pinning the `[text][^1]` text-part
 guard (cursor on the text → `None`), and a dated sentence in the cycle-2 spec noting
 that the delivered references capability also serves the reverse routes

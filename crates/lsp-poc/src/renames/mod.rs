@@ -4,9 +4,11 @@
 //! Routes mirror references: a heading renames its text plus every
 //! inbound fragment across the candidate documents (each resolved in its
 //! own context); reference/definition and footnote-ref/footnote-def
-//! pairs rename together; a link/wikilink renames its fragment, or its
-//! target text when the wikilink has no fragment. Fragment-less file
-//! links and web destinations answer `None`.
+//! pairs rename together; a link/wikilink rename with a fragment
+//! delegates to the target heading (its text plus every inbound
+//! fragment — the requesting link's own fragment included), and a
+//! fragment-less wikilink edits its inner target text. Fragment-less
+//! file links and web destinations answer `None`.
 
 use std::collections::HashMap;
 use std::sync::Arc;
