@@ -43,6 +43,14 @@ pub struct Heading {
         )
     )]
     pub level: u8,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "heading content is consumed from cycle 4 (rename) onward"
+        )
+    )]
+    pub content_range: Range,
     pub range: Range,
 }
 
@@ -56,6 +64,14 @@ pub struct Definition {
     )]
     pub destination: String,
     pub range: Range,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "label ranges are consumed from cycle 4 (rename) onward"
+        )
+    )]
+    pub label_range: Range,
 }
 
 /// A footnote definition `[^id]: text`.
@@ -63,6 +79,14 @@ pub struct Definition {
 pub struct FootnoteDefinition {
     pub id: String,
     pub range: Range,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "footnote id ranges are consumed from cycle 4 (rename) onward"
+        )
+    )]
+    pub id_range: Range,
 }
 
 /// An inline link `[text](destination)` (images are not collected in cycle 1).
@@ -70,6 +94,14 @@ pub struct FootnoteDefinition {
 pub struct Link {
     pub destination: String,
     pub range: Range,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "link fragments are consumed from cycle 4 (rename) onward"
+        )
+    )]
+    pub fragment_range: Option<Range>,
 }
 
 /// A full, collapsed, or shortcut reference link's label.
@@ -84,6 +116,14 @@ pub struct Reference {
 pub struct FootnoteReference {
     pub id: String,
     pub range: Range,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "footnote id ranges are consumed from cycle 4 (rename) onward"
+        )
+    )]
+    pub id_range: Range,
 }
 
 /// A wikilink `[[target]]` (Obsidian-style; not standard Markdown).
@@ -91,6 +131,14 @@ pub struct FootnoteReference {
 pub struct Wikilink {
     pub target: String,
     pub range: Range,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "wikilink fragments are consumed from cycle 4 (rename) onward"
+        )
+    )]
+    pub fragment_range: Option<Range>,
 }
 
 /// Where a parsed destination points.
@@ -301,6 +349,7 @@ fn push_heading(heading: Node, text: &str, level: u8, index: &mut MdIndex) {
     index.headings.push(Heading {
         slug: slugify(raw),
         level,
+        content_range: content.range(),
         range: heading.range(),
     });
 }
@@ -341,18 +390,55 @@ fn collect_definition(definition: Node, text: &str, index: &mut MdIndex) {
         .and_then(|child| clean_destination(child, text));
     if let Some(id) = label.strip_prefix('^') {
         if !id.is_empty() {
+            // The label's inner bytes still carry the caret (`^id`); the
+            // rename replaces the bare id, so the range starts past it.
+            let Some(mut id_range) = inner_range(&label_node, text) else {
+                return;
+            };
+            id_range.start_byte += 1;
+            id_range.start_point.column += 1;
             index.footnote_definitions.push(FootnoteDefinition {
                 id: id.to_owned(),
                 range: definition.range(),
+                id_range,
             });
         }
         return;
     }
+    let Some(label_range) = inner_range(&label_node, text) else {
+        return;
+    };
     index.definitions.push(Definition {
         label,
         destination: destination.unwrap_or_default(),
         range: definition.range(),
+        label_range,
     });
+}
+
+/// The bytes INSIDE a `[label]` node — brackets stripped — as a
+/// document-absolute range (the rename replaces bare label text).
+/// Labels are single-line (the `link_label` grammar node), so the end
+/// point's column is the start column plus the inner length.
+fn inner_range(label_node: &Node, text: &str) -> Option<Range> {
+    let raw = label_node.utf8_text(text.as_bytes()).ok()?;
+    let leading = raw.len() - raw.trim_start_matches('[').len();
+    let trailing = raw.len() - raw.trim_end_matches(']').len();
+    let start = label_node.start_byte() + leading;
+    let inner_len = label_node.end_byte() - trailing - start;
+    let start_col = label_node.start_position().column + leading;
+    Some(Range {
+        start_byte: start,
+        end_byte: start + inner_len,
+        start_point: Point {
+            row: label_node.start_position().row,
+            column: start_col,
+        },
+        end_point: Point {
+            row: label_node.start_position().row,
+            column: start_col + inner_len,
+        },
+    })
 }
 
 /// Fallback footnote-definition detection for the case the block grammar
@@ -381,6 +467,12 @@ fn collect_footnote_definition_from_paragraph(paragraph: Node, text: &str, index
     index.footnote_definitions.push(FootnoteDefinition {
         id: normalize_label(id),
         range: paragraph.range(),
+        id_range: scan_range(
+            (first.start_byte(), first.start_position()),
+            raw,
+            2,
+            id.len(),
+        ),
     });
 }
 
@@ -397,9 +489,11 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex, spans: &mut Vec<R
             let Some(cleaned) = clean_destination(destination, text) else {
                 return;
             };
+            let fragment_range = fragment_range_in(&destination, text);
             index.links.push(Link {
                 destination: cleaned,
                 range: node.range(),
+                fragment_range,
             });
         }
         "full_reference_link" => {
@@ -532,6 +626,7 @@ fn scan_footnote_references(source: &str, base: (usize, Point), index: &mut MdIn
         index.footnote_references.push(FootnoteReference {
             id: normalize_label(id),
             range: scan_range(base, source, start, relative + 3),
+            id_range: scan_range(base, source, start + 2, relative),
         });
     }
 }
@@ -548,9 +643,18 @@ fn scan_wikilinks(source: &str, base: (usize, Point), index: &mut MdIndex) {
         if content.is_empty() || content.contains('[') {
             continue;
         }
+        let fragment_range = content.find('#').map(|hash_offset| {
+            scan_range(
+                base,
+                source,
+                start + 2 + hash_offset + 1,
+                relative - hash_offset - 1,
+            )
+        });
         index.wikilinks.push(Wikilink {
             target: content.trim().to_owned(),
             range: scan_range(base, source, start, relative + 4),
+            fragment_range,
         });
     }
 }
@@ -614,6 +718,20 @@ fn clean_destination(node: Node, text: &str) -> Option<String> {
         .strip_prefix('<')
         .and_then(|rest| rest.strip_suffix('>'));
     Some(unwrapped.unwrap_or(trimmed).to_owned())
+}
+
+/// The `#fragment` range inside a destination node's own text, in
+/// document-absolute coordinates (`None` when the destination has no
+/// fragment).
+fn fragment_range_in(node: &Node, text: &str) -> Option<Range> {
+    let node_text = node.utf8_text(text.as_bytes()).ok()?;
+    let hash_offset = node_text.find('#')?;
+    Some(scan_range(
+        (node.start_byte(), node.start_position()),
+        node_text,
+        hash_offset + 1,
+        node_text.len() - hash_offset - 1,
+    ))
 }
 
 fn walk(node: Node, visit: &mut dyn FnMut(Node)) {
@@ -683,7 +801,7 @@ pub fn item_at(index: &MdIndex, position: LspPosition) -> Option<CursorItem<'_>>
 #[cfg(test)]
 mod tests {
     use super::{
-        CursorItem, LspPosition, MarkdownParser, MdIndex, Target, build, item_at,
+        CursorItem, LspPosition, MarkdownParser, MdIndex, Range, Target, build, item_at,
         parse_destination, parse_wiki_target, slugify,
     };
 
@@ -934,5 +1052,51 @@ mod tests {
         // `See` opens a plain sentence — nothing reference- or
         // definition-worthy under it.
         assert_eq!(kind_at(&index, at("See")), None);
+    }
+
+    #[test]
+    fn rename_sub_ranges_slice_back_to_their_source_text() {
+        let text = fixture_text();
+        let index = fixture();
+        let slice = |range: Range| &text[range.start_byte..range.end_byte];
+
+        let heading = &index.headings[0];
+        assert_eq!(slice(heading.content_range), "Top");
+
+        let summary = index
+            .links
+            .iter()
+            .find(|link| link.destination == "#top")
+            .expect("fragment link collected");
+        assert_eq!(slice(summary.fragment_range.expect("fragment")), "top");
+
+        let other = index
+            .wikilinks
+            .iter()
+            .find(|wikilink| wikilink.target == "folder/note#Section")
+            .expect("wikilink collected");
+        assert_eq!(slice(other.fragment_range.expect("fragment")), "Section");
+
+        let reference = &index.references[0];
+        assert_eq!(slice(reference.range), "[label][ref]");
+
+        let definition = &index.definitions[0];
+        assert_eq!(slice(definition.label_range), "ref");
+
+        let footnote = &index.footnote_references[0];
+        assert_eq!(slice(footnote.id_range), "1");
+
+        let footnote_definition = &index.footnote_definitions[0];
+        assert_eq!(slice(footnote_definition.id_range), "1");
+
+        // `[^b]: x` has single-token content, so it routes through the
+        // definition branch; its id range must exclude the caret.
+        assert!(index.has_footnote_definition("b"));
+        let caret_definition = index
+            .footnote_definitions
+            .iter()
+            .find(|definition| definition.id == "b")
+            .expect("caret footnote definition collected");
+        assert_eq!(slice(caret_definition.id_range), "b");
     }
 }

@@ -30,3 +30,5 @@ lazy continuation [[LazyWiki]] here
 
 Setext Two
 ---
+
+[^b]: x
