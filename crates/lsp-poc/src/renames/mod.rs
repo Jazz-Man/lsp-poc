@@ -50,11 +50,11 @@ pub fn prepare_at(index: &links::MdIndex, position: LspPosition) -> Option<Range
     match item_at(index, position)? {
         CursorItem::Heading(heading) => Some(heading.content_range),
         CursorItem::Link(link) => link.fragment_range,
-        CursorItem::Wikilink(wikilink) => wikilink.fragment_range,
-        CursorItem::Reference(reference) => Some(reference.range),
+        CursorItem::Reference(reference) => Some(reference.label_range),
         CursorItem::Definition(definition) => Some(definition.label_range),
         CursorItem::FootnoteReference(footnote) => Some(footnote.id_range),
         CursorItem::FootnoteDefinition(definition) => Some(definition.id_range),
+        CursorItem::Wikilink(wikilink) => Some(wikilink.fragment_range.unwrap_or(wikilink.range)),
     }
 }
 
@@ -97,7 +97,7 @@ pub fn at_position(
             heading_rename_edits(heading, self_url, &context, &mut edits);
         }
         CursorItem::Reference(reference) => {
-            push_edit(&mut edits, self_url, reference.range, new_name);
+            push_edit(&mut edits, self_url, reference.label_range, new_name);
             let definition = index
                 .definitions()
                 .iter()
@@ -108,7 +108,7 @@ pub fn at_position(
             push_edit(&mut edits, self_url, definition.label_range, new_name);
             for reference in index.references() {
                 if reference.label == definition.label {
-                    push_edit(&mut edits, self_url, reference.range, new_name);
+                    push_edit(&mut edits, self_url, reference.label_range, new_name);
                 }
             }
         }
@@ -149,8 +149,9 @@ pub fn at_position(
                     delegate_edits(&target, &context, &mut edits)?;
                 }
                 // A fragment-less wikilink edits its own target text (the
-                // physical file is not renamed).
-                (_, None) => push_edit(&mut edits, self_url, wikilink.range, new_name),
+                // physical file is not renamed) — the inner bytes, so the
+                // brackets stay and the link survives.
+                (_, None) => push_edit(&mut edits, self_url, wikilink.target_range, new_name),
                 // The parse sees a fragment the scan could not range —
                 // nothing to edit.
                 (None, Some(_)) => return None,
@@ -487,11 +488,23 @@ mod tests {
     #[test]
     fn wikilink_without_fragment_edits_its_own_target_text() {
         let (self_url, _) = self_doc();
-        let index = parse("see [[My Note]]\n");
+        let text = "see [[My Note]] here\n";
+        let index = parse(text);
+        let bracket = text.find("[[My Note]]").expect("wikilink present");
         let edits = edits_of(&index, &self_url, 0, 8, "Renamed Note", &documents_empty())
             .expect("wikilink target rename resolves");
         assert_eq!(edits[&self_url].len(), 1);
-        assert_eq!(edits[&self_url][0].new_text, "Renamed Note");
+        let edit = &edits[&self_url][0];
+        assert_eq!(edit.new_text, "Renamed Note");
+        // The inner target text is replaced; the `[[`/`]]` brackets stay.
+        assert_eq!(
+            edit.range.start.character,
+            u32::try_from(bracket + 2).expect("offset fits"),
+        );
+        assert_eq!(
+            edit.range.end.character,
+            u32::try_from(bracket + 2 + "My Note".len()).expect("offset fits"),
+        );
     }
 
     #[test]

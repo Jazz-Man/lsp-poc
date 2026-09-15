@@ -81,6 +81,7 @@ pub struct Link {
 pub struct Reference {
     pub label: String,
     pub range: Range,
+    pub label_range: Range,
 }
 
 /// A footnote reference `[^id]`.
@@ -96,6 +97,7 @@ pub struct FootnoteReference {
 pub struct Wikilink {
     pub target: String,
     pub range: Range,
+    pub target_range: Range,
     pub fragment_range: Option<Range>,
 }
 
@@ -465,9 +467,13 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex, spans: &mut Vec<R
             let Some(raw) = bracketed_text(label, text) else {
                 return;
             };
+            let Some(label_range) = inner_range(&label, text) else {
+                return;
+            };
             index.references.push(Reference {
                 label: normalize_label(&raw),
                 range: node.range(),
+                label_range,
             });
         }
         "collapsed_reference_link" | "shortcut_link" => {
@@ -505,6 +511,9 @@ fn collect_inline(root: Node, text: &str, index: &mut MdIndex, spans: &mut Vec<R
             index.references.push(Reference {
                 label: normalize_label(raw),
                 range: node.range(),
+                // No brackets wrap the visible label, so the node itself
+                // is the inner range.
+                label_range: link_text.range(),
             });
         }
         "code_span" => spans.push(node.range()),
@@ -609,6 +618,7 @@ fn scan_wikilinks(source: &str, base: (usize, Point), index: &mut MdIndex) {
         index.wikilinks.push(Wikilink {
             target: content.trim().to_owned(),
             range: scan_range(base, source, start, relative + 4),
+            target_range: scan_range(base, source, start + 2, relative),
             fragment_range,
         });
     }
@@ -1040,7 +1050,10 @@ mod tests {
         assert_eq!(slice(other.fragment_range.expect("fragment")), "Section");
 
         let reference = &index.references[0];
+        // The whole node is item_at's containment range; the rename
+        // replaces only the inner label bytes.
         assert_eq!(slice(reference.range), "[label][ref]");
+        assert_eq!(slice(reference.label_range), "ref");
 
         let definition = &index.definitions[0];
         assert_eq!(slice(definition.label_range), "ref");
