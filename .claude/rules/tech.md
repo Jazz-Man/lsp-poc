@@ -71,9 +71,13 @@ when set, otherwise `debug` in debug builds and `info` in release.
 - Treat an `async-language-server` rev bump as a deliberate experiment:
   re-check the `Server` trait surface — the pinned crate changes shape
   between tags.
-- Do not set `RUSTFLAGS` in `.cargo/config.toml`: `target/` is shared with
-  rust-analyzer, and flag divergence forces a full dep-tree rebuild. If builds
-  OOM, uncomment `jobs = 8` there; its `[alias] lint` gives short clippy output.
+- `RUSTFLAGS = ["-D", "warnings"]` lives in `.cargo/config.toml` (owner
+  policy, 2026-09-20, mirroring upstream): every cargo-driven compilation
+  denies warnings, and no command repeats the flag. It belongs in that file
+  precisely so the CLI and rust-analyzer's flycheck — both run cargo, both
+  read it — stay hash-compatible on the shared `target/`; setting RUSTFLAGS
+  on one side only is the divergence that forces a full dep-tree rebuild.
+  Its `[alias] lint` gives short clippy output.
 
 ---
 _Use the pinned toolchain and let the Makefile verify the tree — failures are
