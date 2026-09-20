@@ -33,4 +33,4 @@ Rust workspace (edition 2024, stable toolchain) with two crates forming one pipe
 ## Conventions
 
 - Workspace clippy gates: `all`, `cargo`, and `pedantic` at deny; `unwrap_used`/`expect_used` at deny, test-aware via `clippy.toml`; a restriction set (`dbg_macro` among them) at warn — avoid `.unwrap()`, `.expect()`, and `dbg!()` in new code
-- Don't set `RUSTFLAGS` in `.cargo/config.toml`: `target/` is deliberately shared with rust-analyzer, and flag divergence forces a full dependency-tree rebuild
+- `RUSTFLAGS = ["-D", "warnings"]` lives in `.cargo/config.toml` (owner policy, 2026-09-20): every cargo-driven compilation denies warnings — commands never repeat the flag. Keeping it in that file keeps the CLI and rust-analyzer hash-compatible on the shared `target/`; RUSTFLAGS on one side only (env var, Makefile flag) is the divergence that forces a full dependency-tree rebuild

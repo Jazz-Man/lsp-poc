@@ -37,8 +37,10 @@ fmt-fix:
 	@$(CARGO_BIN) fmt --all
 
 ## clippy: lint every target, warnings as errors (gate)
+# Warnings are denied by RUSTFLAGS in .cargo/config.toml — commands never
+# repeat the flag.
 clippy:
-	@$(CARGO_BIN) clippy --workspace --all-targets -- -D warnings
+	@$(CARGO_BIN) clippy --workspace --all-targets
 
 ## doc: build docs, warnings as errors (gate)
 doc:
