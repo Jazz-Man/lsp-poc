@@ -14,9 +14,7 @@
 # dir and stops fighting the CLI.
 
 [build]
-# The dep tree is memory-heavy to compile in parallel. If `cargo build`
-# OOM-kills or makes the machine unresponsive, cap parallelism:
-# jobs = 8
+rustflags = ["-D", "warnings"]
 
 [alias]
 # Lean-output lint: short machine-parseable diagnostics, no color codes —

@@ -16,7 +16,7 @@ publish = false
 [workspace.dependencies]
 tokio = { version = "1.53.1", features = ["rt","fs","macros"] }
 
-arch-lint = "=0.5.0"
+arch-lint = "0.6.0"
 
 
 # Consolidated from crates/lsp-poc (owner call 2026-09-12): cargo applies
