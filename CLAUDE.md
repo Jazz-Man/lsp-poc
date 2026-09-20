@@ -18,7 +18,7 @@ Rust workspace (edition 2024, stable toolchain) with two crates forming one pipe
 
 ### `crates/lsp-poc` — the LSP server binary
 
-- Built on `async-language-server` (direct dep of this crate, git rev `v0.18.0`, `tree-sitter` feature), which supplies the `Server` trait, `serve(server)` over stdio, and a document store with tree-sitter parsing — there is no hand-rolled JSON-RPC code.
+- Built on `async-language-server` (direct dep of this crate, git rev `v0.19.0`, `tree-sitter` feature), which supplies the `Server` trait, `serve(server)` over stdio, and a document store with tree-sitter parsing — there is no hand-rolled JSON-RPC code.
 - `src/server.rs` defines `PocLanguageServer`, the central place where features live:
   - `server_capabilities()` declares what the server supports (currently hover, diagnostics, definition, references, and rename)
   - `server_document_matchers()` claims Markdown documents (url glob `**/*.md`, lang string `Markdown`, `tree-sitter-md` grammar)

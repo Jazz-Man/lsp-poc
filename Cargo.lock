@@ -99,7 +99,7 @@ dependencies = [
 [[package]]
 name = "async-language-server"
 version = "0.0.0"
-source = "git+https://github.com/Jazz-Man/async-language-server?rev=v0.18.0#5d53c84702f6cd6d013b9625a2e245d573f782e6"
+source = "git+https://github.com/Jazz-Man/async-language-server?rev=v0.19.0#c8c6ec1c4f2aefd6fb901640cf904e12078f2148"
 dependencies = [
  "async-lsp",
  "dashmap",
@@ -695,7 +695,7 @@ dependencies = [
 [[package]]
 name = "lsp_macros"
 version = "0.1.0"
-source = "git+https://github.com/Jazz-Man/async-language-server?rev=v0.18.0#5d53c84702f6cd6d013b9625a2e245d573f782e6"
+source = "git+https://github.com/Jazz-Man/async-language-server?rev=v0.19.0#c8c6ec1c4f2aefd6fb901640cf904e12078f2148"
 dependencies = [
  "proc-macro2",
  "quote",

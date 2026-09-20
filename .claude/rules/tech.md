@@ -10,7 +10,7 @@ dated pins (miri's `MIRI_TOOLCHAIN` in the Makefile) deliberately, never casuall
 ## Stack
 
 `async-language-server` — a direct dependency of `crates/lsp-poc`, git rev
-`v0.18.0`, with the `tree-sitter` feature — owns the JSON-RPC loop, the
+`v0.19.0`, with the `tree-sitter` feature — owns the JSON-RPC loop, the
 document store, and tree-sitter parsing. Use its re-exports (`lsp_types`,
 `tree_sitter`, `tree_sitter_utils`) instead of adding those crates directly.
 `serve(server)` serves over stdio; the binary adds no CLI of its own. The Markdown document matcher's grammar is
