@@ -1,14 +1,16 @@
 # Project-local Cargo settings.
 #
-# IMPORTANT: do NOT set RUSTFLAGS here. We deliberately share `target/` with
-# rust-analyzer (the project is run often via `cargo run`, so the dir stays warm
-# and rust-analyzer reuses the already-built dependency tree instead of
-# recompiling it a second time). Any RUSTFLAGS divergence between this file and a
-# plain `cargo run` would change the metadata hash and force a full recompile of
-# the whole dep tree — the single biggest responsiveness killer on a workspace
-# this size.
+# [build] rustflags denies warnings on every cargo-driven compilation (build,
+# check, test, clippy) — owner policy (2026-09-20), mirroring the upstream
+# crate. Commands never repeat `-D warnings`; it arrives here, once.
 #
-# If you genuinely need RUSTFLAGS (or a custom linker), also set
+# The shared-`target/` invariant with rust-analyzer holds BECAUSE the flag
+# lives in this file: the CLI and rust-analyzer's flycheck both run cargo,
+# which reads this config, so their metadata hashes agree. The divergence
+# that forces a full dep-tree rebuild comes from setting RUSTFLAGS on one
+# side only (an env var, a Makefile flag) — don't.
+#
+# If you genuinely need more RUSTFLAGS (or a custom linker), also set
 #   cargo.targetDir = true
 # in .lsp.json and .zed/settings.json so rust-analyzer builds in its own target
 # dir and stops fighting the CLI.
