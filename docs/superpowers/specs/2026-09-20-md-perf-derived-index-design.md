@@ -128,6 +128,7 @@ within one generation hit the same cache.
   code; no panics in hooks/handlers; no `.unwrap()`/`.expect()` outside tests.
 - Surgical: every file except `crates/lsp-poc/src/server.rs` byte-identical.
 - `rust-skills` applies to planning and implementation; LSP-first analysis;
-  dispatches carry the standing rules (workers `sonnet[1m]`, reviewers
-  `opus[1m]` with their own battery/dupes runs, findings as actionable
-  fix-tasks, no workarounds).
+  dispatches carry the standing rules (workers `sonnet`, reviewers
+  `opus` with their own battery/dupes runs, findings as actionable
+  fix-tasks, no workarounds; model names carry no suffixes — long context
+  is decided by global configuration).
